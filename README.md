@@ -1,0 +1,1 @@
+Package with config files and scripts for facilitating configuration tasks on Autonomous Linux Oracle Linux 7 running in Oracle Cloud Infrastructure
