@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.7%{?dist}
+Release: 1.0.11%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -85,16 +85,24 @@ for conf in /etc/yum/yum-cron.conf /etc/yum/yum-cron-hourly.conf; do
     fi
 done
 
+# install
+if [ "$1" = 1 ]; then
+    # We only create random time cron job on fist boot
+    mkdir -p %{_sharedstatedir}/cloud/scripts/per-instance
+    ln -sf  %{_prefix}/lib/%{name}/add_cron_job.sh %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
+fi
+
 %posttrans
-# Create random time cron job on fist boot
-mkdir -p %{_sharedstatedir}/cloud/scripts/per-instance
-ln -sf  %{_prefix}/lib/%{name}/add_cron_job.sh %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
 
 %preun
-rm -f %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
+# uninstall
+if [ "$1" = 0 ]; then
+    rm -f /etc/cron.d/al-update
+    rm -f %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
+fi
 
 %postun
 
 %changelog
-* Wed Jul 17 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.7
+* Fri Aug 30 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.11
 - Initial commit.

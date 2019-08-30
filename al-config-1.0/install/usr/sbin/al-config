@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
+# Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
+#
+# al-config: configuration for OCI CLI
+#
+
+. /usr/lib/al-config/functions
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [OPTION]...
+ -u OCI User OCID
+ -k OCI API key file
+ -f OCI API public key fingerprint
+ -p OCI API key pass phrase
+ -t OCI tenancy ocid
+ -c OCI compartment name
+ -n OCI notification service topic name
+ -h This message
+EOF
+    exit 1
+}
+
+run_as_root_check
+
+while getopts "u:k:p:f:t:c:n:h" OPTION; do
+    case "$OPTION" in
+      u)
+        oci_user=$OPTARG
+        ;;
+      k)
+        oci_key_file_from=$OPTARG
+        ;;
+      p)
+        oci_key_pass_phrase=$OPTARG
+        ;;
+      f)
+        oci_key_fingerprint=$OPTARG
+        ;;
+      t)
+        oci_tenancy=$OPTARG
+        ;;
+      c)
+        oci_compartment=$OPTARG
+        ;;
+      n)
+        oci_topic=$OPTARG
+        ;;
+      h)
+        usage
+        ;;
+      *)
+        usage
+        ;;
+    esac
+done
+
+if [ -z "$oci_user" -o -z "$oci_key_file_from" \
+     -o -z "$oci_key_fingerprint" -o -z "$oci_tenancy" \
+     -o -z "$oci_compartment" -o -z "$oci_topic" ]; then
+    usage
+fi
+
+if [ ! -r "$oci_key_file_from" ]; then
+    echo "File $oci_key_file_from doesn't exist" >&2
+fi
+
+# initial config
+region=$(curl -sfm 25 http://169.254.169.254/opc/v1/instance/canonicalRegionName 2>/dev/null)
+
+cat > $oci_cli_config_file <<CONFIG
+[DEFAULT]
+user=$oci_user
+key_file=$oci_api_key_file
+fingerprint=$oci_key_fingerprint
+pass_phrase=$oci_key_pass_phrase
+tenancy=$oci_tenancy
+region=$region
+CONFIG
+chmod 600 $oci_cli_config_file
+
+# set api key
+cat "$oci_key_file_from" > $oci_api_key_file
+chmod 600 $oci_api_key_file
+
+# set compartment and topic name to al.conf
+if grep -q "^compartment=" $config_file; then
+    sed -i "s/^compartment=.*/compartment=$oci_compartment/g" $config_file
+else
+    echo "compartment=$oci_compartment" >> $config_file
+fi
+if grep -q "^topic=" $config_file; then
+    sed -i "s/^topic=.*/topic=$oci_topic/g" $config_file
+else
+    echo "topic=$oci_topic" >> $config_file
+fi

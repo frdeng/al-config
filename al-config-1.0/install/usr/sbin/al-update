@@ -1,0 +1,248 @@
+#!/bin/bash
+#
+# Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
+# Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
+#
+# al-update:
+# - yum-cron - yum upgrade
+# - ksplice kernel, user upgrade
+# - report needs-restarting
+# - send notification
+
+. /usr/lib/al-config/functions
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [OPTION]...
+ -h This message
+EOF
+    exit 1
+}
+
+run_as_root_check
+
+while getopts "h" OPTION; do
+    case "$OPTION" in
+      h)
+        usage
+        ;;
+      *)
+        usage
+        ;;
+    esac
+done
+
+lock_file=/var/run/$(basename $0).lock
+
+if [ ! -f "$config_file" ]; then
+    echo "$config_file doesn't exist."
+    exit 2
+fi
+. "$config_file"
+
+if [ -e $lock_file ]; then
+    echo "$0 is already running." >&2
+    echo "If you are sure it is not running, please delete $lock_file and re-run." >&2
+    exit 1
+fi
+touch $lock_file
+
+## status
+# ksplice kernel updates installed
+ksplice_kernel_installed=0
+# ksplice user updates installed
+ksplice_user_installed=0
+# yum updates installed
+yum_installed=0
+
+# ksplice kernel upgrade failed
+ksplice_kernel_failed=0
+# ksplice user upgrade failed
+ksplice_user_failed=0
+# yum-cron failed
+yum_failed=0
+
+# notify ?
+notify=0
+
+mkdir -p /var/run/al-config
+out_file=$(mktemp /var/run/al-config/al_msg_XXXX)
+
+# yum-cron
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Yum-cron upgrade report                                               |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "Running yum-cron with update cmd: default" | tee -a $out_file
+yum-cron $yum_cron_config_file 2>&1 | tee -a $out_file
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    yum_failed=1
+fi
+# new updates - The updates were successfully applied
+# no new updates -
+if tail $out_file | grep -q "^The updates were successfully applied"; then
+    yum_installed=1
+fi
+echo | tee -a $out_file
+
+# ksplice kernel upgrade
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Ksplice kernel upgrade report                                         |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "Running ksplice -y kernel upgrade" | tee -a $out_file
+ksplice -y kernel upgrade 2>&1 | tee -a $out_file
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    ksplice_kernel_failed=1
+fi
+# new updates: Installing
+# new rollback: Removing?
+# no new updates: Nothing to be done.
+if ! tail $out_file | grep -q "^Nothing to be done."; then
+    if tail $out_file | egrep -q "^Installing|^Removing"; then
+        ksplice_kernel_installed=1
+    fi
+fi
+echo | tee -a $out_file
+
+# ksplice user upgrade
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Ksplice user upgrade report                                           |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "Running ksplice -y user upgrade" | tee -a $out_file
+ksplice -y user upgrade 2>&1 | tee -a $out_file
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    ksplice_user_failed=1
+fi
+# new package updates - Complete!
+# new live patches - Done!
+# no new updates - No packages marked for update
+#                  Nothing to do.
+if ! tail $out_file | grep -q "^Nothing to do."; then
+    if egrep -q "^Complete!|^Done!" $out_file; then
+        ksplice_user_installed=1
+    fi
+fi
+echo | tee -a $out_file
+
+# set notify and notification titile
+title="AL: Status update on instance $(hostname)"
+s=""
+if [ $ksplice_kernel_installed -eq 1 -o $ksplice_user_installed -eq 1 -o $yum_installed -eq 1 ]; then
+    notify=1
+    if [ $ksplice_kernel_installed -eq 1 -o $ksplice_user_installed -eq 1 ]; then
+        s="Ksplice"
+        if [ $yum_installed -eq 1 ]; then
+            s="Ksplice and Yum"
+        fi
+        s="$s updates installed"
+    else
+        if [ $yum_installed -eq 1 ]; then
+            s="Yum updates installed"
+        fi
+    fi
+fi
+
+# set title to "failed"
+if [ $ksplice_kernel_failed -eq 1 -o $ksplice_user_failed -eq 1 -o $yum_failed -eq 1 ]; then
+    notify=1
+    if [ $ksplice_kernel_failed -eq 1 -o $ksplice_user_failed -eq 1 ]; then
+        s="Ksplice"
+        if [ $yum_failed -eq 1 ]; then
+            s="Ksplice and Yum"
+        fi
+        s="$s updates failed"
+    else
+        if [ $yum_failed -eq 1 ]; then
+            s="Yum updates failed"
+        fi
+    fi
+fi
+
+if [ -n "$s" ]; then
+    title="AL: $s on instance $(hostname)"
+fi
+
+# if the state is not changed, do not send notification
+if cmp -s $out_file $al_state_file; then
+    notify=0
+else
+    notify=1
+    # update state
+    cp -f $out_file $al_state_file
+fi
+
+# create summary
+
+s_yum=""
+
+if [ $yum_installed -eq 1 ]; then
+    s_yum="yes"
+else
+    s_yum="no"
+fi
+if [ $yum_failed -eq 1 ]; then
+    s_yum="failed"
+fi
+s_ksplice_kernel=""
+if [ $ksplice_kernel_installed -eq 1 ]; then
+    s_ksplice_kernel="yes"
+else
+    s_ksplice_kernel="no"
+fi
+if [ $ksplice_kernel_failed -eq 1 ]; then
+    s_ksplice_kernel="failed"
+fi
+s_ksplice_user=""
+if [ $ksplice_user_installed -eq 1 ]; then
+    s_ksplice_user="yes"
+else
+    s_ksplice_user="no"
+fi
+if [ $ksplice_user_failed -eq 1 ]; then
+    s_ksplice_user="failed"
+fi
+
+summary_file=$out_file.summary
+cat > $summary_file <<SUM
++------------------------------------------------------------------------+
+|  Summary ($(date))                                |
++------------------------------------------------------------------------+
+yum-cron updates installed: $s_yum
+Ksplice kernel updates installed: $s_ksplice_kernel
+Ksplice user updates installed: $s_ksplice_user
+
+SUM
+
+# Add summary
+cat $out_file >> $summary_file
+mv -f $summary_file $out_file
+
+# Add needs-restarting output
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Needs-restarting report                                               |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "Running needs-restarting" | tee -a $out_file
+needs-restarting 2>&1 | tee -a $out_file
+echo ------------------------------------------------------------------------ | tee -a $out_file
+echo "Running needs-restarting --services" | tee -a $out_file
+needs-restarting --services 2>&1 | tee -a $out_file
+echo ------------------------------------------------------------------------ | tee -a $out_file
+echo "Running needs-restarting --reboothint" | tee -a $out_file
+needs-restarting --reboothint 2>&1 | tee -a $out_file
+echo | tee -a $out_file
+
+# send notification
+if [ $notify -eq 1 ]; then
+    al-notify -t "$title" -f "$out_file"
+fi
+cat $out_file >> $log_file
+rm -f $out_file
+
+# some regular clean up
+# remove yum-cron, ksplice cron jobs, they can get back when packages get updated.
+rm -f /etc/cron.d/uptrack /etc/cron.d/ksplice \
+      /etc/cron.hourly/0yum-hourly.cron \
+      /etc/cron.daily/0yum-daily.cron
+
+# finally remove the lock
+rm -f $lock_file
+

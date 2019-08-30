@@ -1,0 +1,7 @@
+# AL logs
+/var/log/al.log {
+    missingok
+    notifempty
+    compress
+    delaycompress
+}

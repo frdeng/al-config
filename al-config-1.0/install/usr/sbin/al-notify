@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
+# Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
+#
+# al-notify: Post message via OCI notification service
+#
+
+. /usr/lib/al-config/functions
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [OPTION]...
+ -t Message title
+ -f File that contains message content
+ -h This message
+EOF
+    exit 1
+}
+
+run_as_root_check
+
+while getopts "t:f:h" OPTION; do
+    case "$OPTION" in
+      t)
+        title=$OPTARG
+        ;;
+      f)
+        file=$OPTARG
+        ;;
+      h)
+        usage
+        ;;
+      *)
+        usage
+        ;;
+    esac
+done
+
+[ -z "$title" -o -z "$file" ] && usage
+
+if [ ! -f "$file" ]; then
+    echo "$file doesn't exist." >&2
+    exit 1
+fi
+
+if [ ! -f "$config_file" ]; then
+    echo "$config_file doesn't exist." >&2
+    exit 1
+fi
+
+. "$config_file"
+
+# If topic or compartment is not set, exit.
+if [ -z "$topic" ]; then
+    echo "Please configure OCI notification service topic in $config_file." >&2
+    exit 1
+fi
+if [ -z "$compartment" ]; then
+    echo "Please configure OCI compartment name in $config_file." >&2
+    exit 1
+fi
+
+# If oci cli config or api key doesn't exist, exit.
+if [ ! -f "$oci_cli_config_file" -o ! -f "$oci_api_key_file" ]; then
+    echo "OCI CLI is not configured properly." >&2
+    echo "Please run al-config to configure OCI CLI." >&2
+    exit 2
+fi
+
+OCI="oci --config-file $oci_cli_config_file"
+
+# oci cli check: get region subscription
+if ! $OCI iam region-subscription list &>/dev/null; then
+    echo "OCI CLI is not configured properly." >&2
+    echo "Please run al-config to configure OCI CLI." >&2
+    exit 2
+fi
+
+# get comparment id
+compartment_id=$($OCI iam compartment list --all 2>/dev/null | jq -r ".data | .[]  | select(.\"name\" == \"$compartment\") | .\"id\"")
+if [ -z "$compartment_id" ]; then
+    echo "Could not find compartment $compartment OCID." >&2
+    echo "Please verify OCI compartment name in $config_file." >&2
+    exit 3
+fi
+
+# get topic id
+topic_id=$($OCI ons topic list --compartment-id $compartment_id --all 2>/dev/null | jq -r ".data | .[]  | select(.\"name\" == \"$topic\") | .\"topic-id\"")
+
+if [ -z "$topic_id" ]; then
+    echo "Could not find topic $topic OCID." >&2
+    echo "Please verify OCI notification topic name in $config_file." >&2
+    exit 3
+fi
+
+multi_email=0
+files=$file
+count=0
+size=$(stat -c %s $file)
+if [ $size -gt 65536 ]; then
+    split -C 64K -d -a 1 $file ${file}.
+    files="$(ls $file.*)"
+    count=$(ls $file.* | wc -l)
+    multi_email=1
+fi
+
+if [ $multi_email -eq 1 ]; then
+    for file in $files; do
+        index=${file##*.}
+        t="[$(($index+1))/$count] $title"
+        echo "Posting message with title '$t'"
+        message=$(cat $file)
+        $OCI ons message publish --topic-id $topic_id --title "$t" --body "$message"
+    done
+    rm -f $files
+else
+    message=$(cat $file)
+    echo "Posting message with title '$title'"
+    $OCI ons message publish --topic-id $topic_id --title "$title" --body "$message"
+fi

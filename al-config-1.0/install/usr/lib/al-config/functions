@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+# Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
+# Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
+#
+
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+config_dir=/etc/al-config
+config_file=$config_dir/al.conf
+oci_cli_config_file=$config_dir/oci_cli.conf
+oci_api_key_file=$config_dir/oci_api_key.pem
+yum_cron_config_file=$config_dir/yum-cron.conf
+al_state_file=/var/lib/al-config/state
+al_cron_job_file=/etc/cron.d/al-update
+log_file=/var/log/al.log
+
+log () {
+    echo "$(date) - $*" | tee -a "$log_file"
+    return ${PIPESTATUS[0]}
+}
+
+run_as_root_check () {
+    if [ $(id -u) != 0 ]; then
+        echo "Please run as root." >&2
+        exit 1
+    fi
+}
