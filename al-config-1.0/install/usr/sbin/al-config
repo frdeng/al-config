@@ -63,8 +63,10 @@ if [ -z "$oci_user" -o -z "$oci_key_file_from" \
     usage
 fi
 
-if [ ! -r "$oci_key_file_from" ]; then
-    echo "File $oci_key_file_from doesn't exist" >&2
+oci_key_file_content=$(read_file "$oci_key_file_from")
+if [ -z "$oci_key_file_content" ]; then
+    echo "Could not read $oci_key_file_from" >&2
+    exit 1
 fi
 
 # initial config
@@ -72,17 +74,17 @@ region=$(curl -sfm 25 http://169.254.169.254/opc/v1/instance/canonicalRegionName
 
 cat > $oci_cli_config_file <<CONFIG
 [DEFAULT]
-user=$oci_user
-key_file=$oci_api_key_file
-fingerprint=$oci_key_fingerprint
-pass_phrase=$oci_key_pass_phrase
-tenancy=$oci_tenancy
-region=$region
+user = $oci_user
+key_file = $oci_api_key_file
+fingerprint = $oci_key_fingerprint
+pass_phrase = $oci_key_pass_phrase
+tenancy = $oci_tenancy
+region = $region
 CONFIG
 chmod 600 $oci_cli_config_file
 
 # set api key
-cat "$oci_key_file_from" > $oci_api_key_file
+echo "$oci_key_file_content" > $oci_api_key_file
 chmod 600 $oci_api_key_file
 
 # set compartment and topic name to al.conf
@@ -96,3 +98,6 @@ if grep -q "^topic=" $config_file; then
 else
     echo "topic=$oci_topic" >> $config_file
 fi
+
+# add cron job if it doesn't exist
+/usr/lib/al-config/add_cron_job.sh

@@ -11,6 +11,7 @@
 usage() {
     cat >&2 << EOF
 Usage: $0 [OPTION]...
+ -f Re-create cron job
  -h This message
 EOF
     exit 1
@@ -18,8 +19,12 @@ EOF
 
 run_as_root_check
 
-while getopts "h" OPTION; do
+force=0
+while getopts "fh" OPTION; do
     case "$OPTION" in
+      f)
+        force=1
+        ;;
       h)
         usage
         ;;
@@ -29,8 +34,11 @@ while getopts "h" OPTION; do
     esac
 done
 
-# Add AL auto update cron job
-cat > $al_cron_job_file <<CRON
+if [ ! -f "$al_cron_job_file" -o $force -eq 1 ]; then
+    # Add AL auto update cron job
+    cat > $al_cron_job_file <<CRON
 # Daily cron job for AL updates
 $(($RANDOM%60)) $(($RANDOM%24)) * * * root /usr/sbin/al-update &>/dev/null
 CRON
+
+fi

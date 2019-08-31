@@ -34,11 +34,7 @@ done
 
 lock_file=/var/run/$(basename $0).lock
 
-if [ ! -f "$config_file" ]; then
-    echo "$config_file doesn't exist."
-    exit 2
-fi
-. "$config_file"
+source_config_file
 
 if [ -e $lock_file ]; then
     echo "$0 is already running." >&2
@@ -161,7 +157,7 @@ if [ -n "$s" ]; then
     title="AL: $s on instance $(hostname)"
 fi
 
-# if the state is not changed, do not send notification
+# if the state is not changed, do not notify
 if cmp -s $out_file $al_state_file; then
     notify=0
 else
@@ -171,9 +167,7 @@ else
 fi
 
 # create summary
-
 s_yum=""
-
 if [ $yum_installed -eq 1 ]; then
     s_yum="yes"
 else
@@ -238,11 +232,10 @@ cat $out_file >> $log_file
 rm -f $out_file
 
 # some regular clean up
-# remove yum-cron, ksplice cron jobs, they can get back when packages get updated.
+# remove yum-cron, ksplice cron jobs, they can come back when the packages get updated.
 rm -f /etc/cron.d/uptrack /etc/cron.d/ksplice \
       /etc/cron.hourly/0yum-hourly.cron \
       /etc/cron.daily/0yum-daily.cron
 
 # finally remove the lock
 rm -f $lock_file
-

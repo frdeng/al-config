@@ -17,12 +17,30 @@ log_file=/var/log/al.log
 
 log () {
     echo "$(date) - $*" | tee -a "$log_file"
-    return ${PIPESTATUS[0]}
+}
+
+source_config_file () {
+    if [ ! -f "$config_file" ]; then
+        echo "$config_file doesn't exist." >&2
+        exit 1
+    fi
+    . "$config_file"
 }
 
 run_as_root_check () {
     if [ $(id -u) != 0 ]; then
         echo "Please run as root." >&2
         exit 1
+    fi
+}
+
+read_file () {
+    local f="$1"
+    if [[ $f =~ ^(https?|ftp|file):// ]]; then
+        curl -sfm 25 "$f" 2>/dev/null
+    else
+        if [ -r "$f" ]; then
+            cat "$f"
+        fi
     fi
 }

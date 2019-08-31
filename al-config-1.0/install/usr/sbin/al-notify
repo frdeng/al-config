@@ -3,7 +3,7 @@
 # Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
 # Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
 #
-# al-notify: Post message via OCI notification service
+# al-notify: Publish message via OCI notification service
 #
 
 . /usr/lib/al-config/functions
@@ -44,12 +44,7 @@ if [ ! -f "$file" ]; then
     exit 1
 fi
 
-if [ ! -f "$config_file" ]; then
-    echo "$config_file doesn't exist." >&2
-    exit 1
-fi
-
-. "$config_file"
+source_config_file
 
 # If topic or compartment is not set, exit.
 if [ -z "$topic" ]; then
@@ -63,7 +58,7 @@ fi
 
 # If oci cli config or api key doesn't exist, exit.
 if [ ! -f "$oci_cli_config_file" -o ! -f "$oci_api_key_file" ]; then
-    echo "OCI CLI is not configured properly." >&2
+    echo "OCI CLI is not properly configured." >&2
     echo "Please run al-config to configure OCI CLI." >&2
     exit 2
 fi
@@ -72,13 +67,14 @@ OCI="oci --config-file $oci_cli_config_file"
 
 # oci cli check: get region subscription
 if ! $OCI iam region-subscription list &>/dev/null; then
-    echo "OCI CLI is not configured properly." >&2
+    echo "OCI CLI is not properly configured." >&2
     echo "Please run al-config to configure OCI CLI." >&2
     exit 2
 fi
 
 # get comparment id
-compartment_id=$($OCI iam compartment list --all 2>/dev/null | jq -r ".data | .[]  | select(.\"name\" == \"$compartment\") | .\"id\"")
+compartment_id=$($OCI iam compartment list --all 2>/dev/null | \
+    jq -r ".data | .[]  | select(.\"name\" == \"$compartment\") | .\"id\"")
 if [ -z "$compartment_id" ]; then
     echo "Could not find compartment $compartment OCID." >&2
     echo "Please verify OCI compartment name in $config_file." >&2
@@ -86,7 +82,8 @@ if [ -z "$compartment_id" ]; then
 fi
 
 # get topic id
-topic_id=$($OCI ons topic list --compartment-id $compartment_id --all 2>/dev/null | jq -r ".data | .[]  | select(.\"name\" == \"$topic\") | .\"topic-id\"")
+topic_id=$($OCI ons topic list --compartment-id $compartment_id --all 2>/dev/null | \
+    jq -r ".data | .[]  | select(.\"name\" == \"$topic\") | .\"topic-id\"")
 
 if [ -z "$topic_id" ]; then
     echo "Could not find topic $topic OCID." >&2
@@ -109,13 +106,13 @@ if [ $multi_email -eq 1 ]; then
     for file in $files; do
         index=${file##*.}
         t="[$(($index+1))/$count] $title"
-        echo "Posting message with title '$t'"
-        message=$(cat $file)
+        echo "Publishing message with title '$t'"
+        message=$(read_file "$file")
         $OCI ons message publish --topic-id $topic_id --title "$t" --body "$message"
     done
     rm -f $files
 else
-    message=$(cat $file)
-    echo "Posting message with title '$title'"
+    message=$(read_file "$file")
+    echo "Publishing message with title '$title'"
     $OCI ons message publish --topic-id $topic_id --title "$title" --body "$message"
 fi
