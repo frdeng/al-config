@@ -43,8 +43,6 @@ if [ -e $lock_file ]; then
 fi
 touch $lock_file
 
-/usr/lib/al-config/pre_config.sh
-
 ## status
 # ksplice kernel updates installed
 ksplice_kernel_installed=0
@@ -70,7 +68,7 @@ out_file=$(mktemp /var/run/al-config/al_msg_XXXX)
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 echo "|  Yum upgrade report                                                    |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running yum-cron with update cmd: default" | tee -a $out_file
+echo "Running 'yum-cron' with update cmd: default." | tee -a $out_file
 yum-cron $yum_cron_config_file 2>&1 | tee -a $out_file
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     yum_failed=1
@@ -80,13 +78,16 @@ fi
 if tail $out_file | grep -q "^The updates were successfully applied"; then
     yum_installed=1
 fi
-echo | tee -a $out_file
+
+# Pre-configure ksplice and yum for AL here
+# in case ksplice-tools, uptrack or yum-cron get updated at this point.
+/usr/lib/al-config/pre_config.sh
 
 # ksplice kernel upgrade
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 echo "|  Ksplice kernel upgrade report                                         |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running uptrack-upgrade -y" | tee -a $out_file
+echo "Running 'uptrack-upgrade -y'." | tee -a $out_file
 uptrack-upgrade -y 2>&1 | tee -a $out_file
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     ksplice_kernel_failed=1
@@ -99,15 +100,12 @@ if ! tail $out_file | grep -q "^Nothing to be done."; then
         ksplice_kernel_installed=1
     fi
 fi
-echo "Running uptrack-show" | tee -a $out_file
-uptrack-show 2>&1 | tee -a $out_file
-echo | tee -a $out_file
 
-# ksplice user upgrade
+# ksplice user-space upgrade
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 echo "|  Ksplice user-space upgrade report                                     |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running ksplice -y user upgrade" | tee -a $out_file
+echo "Running 'ksplice -y user upgrade'." | tee -a $out_file
 ksplice -y user upgrade 2>&1 | tee -a $out_file
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     ksplice_user_failed=1
@@ -121,11 +119,8 @@ if ! tail $out_file | grep -q "^Nothing to do."; then
         ksplice_user_installed=1
     fi
 fi
-echo "Running ksplice user show" | tee -a $out_file
-ksplice user show 2>&1 | tee -a $out_file
-echo | tee -a $out_file
 
-# set notify and notification titile
+# set notify and message titile
 title="AL: Status update on instance $(hostname)"
 s=""
 if [ $ksplice_kernel_installed -eq 1 -o $ksplice_user_installed -eq 1 -o $yum_installed -eq 1 ]; then
@@ -151,10 +146,10 @@ if [ $ksplice_kernel_failed -eq 1 -o $ksplice_user_failed -eq 1 -o $yum_failed -
         if [ $yum_failed -eq 1 ]; then
             s="Ksplice and Yum"
         fi
-        s="$s updates failed"
+        s="$s upgrade failed"
     else
         if [ $yum_failed -eq 1 ]; then
-            s="Yum updates failed"
+            s="Yum upgrade failed"
         fi
     fi
 fi
@@ -163,7 +158,7 @@ if [ -n "$s" ]; then
     title="AL: $s on instance $(hostname)"
 fi
 
-# if the state is not changed, do not notify
+# if no state change, do not notify
 if cmp -s $out_file $al_state_file; then
     notify=0
 else
@@ -172,35 +167,17 @@ else
     cp -f $out_file $al_state_file
 fi
 
-# create summary
-s_yum=""
-if [ $yum_installed -eq 1 ]; then
-    s_yum="yes"
-else
-    s_yum="no"
-fi
-if [ $yum_failed -eq 1 ]; then
-    s_yum="failed"
-fi
-s_ksplice_kernel=""
-if [ $ksplice_kernel_installed -eq 1 ]; then
-    s_ksplice_kernel="yes"
-else
-    s_ksplice_kernel="no"
-fi
-if [ $ksplice_kernel_failed -eq 1 ]; then
-    s_ksplice_kernel="failed"
-fi
-s_ksplice_user=""
-if [ $ksplice_user_installed -eq 1 ]; then
-    s_ksplice_user="yes"
-else
-    s_ksplice_user="no"
-fi
-if [ $ksplice_user_failed -eq 1 ]; then
-    s_ksplice_user="failed"
-fi
+# Create summary
+[ $yum_installed -eq 1 ] && s_yum="YES" || s_yum="NO"
+[ $yum_failed -eq 1 ] && s_yum="FAILED"
 
+[ $ksplice_kernel_installed -eq 1 ] && s_ksplice_kernel="YES" || s_ksplice_kernel="NO"
+[ $ksplice_kernel_failed -eq 1 ] && s_ksplice_kernel="FAILED"
+
+[ $ksplice_user_installed -eq 1 ] && s_ksplice_user="YES" || s_ksplice_user="NO"
+[ $ksplice_user_failed -eq 1 ] && s_ksplice_user="FAILED"
+
+# Add summary
 summary_file=$out_file.summary
 cat > $summary_file <<SUM
 +------------------------------------------------------------------------+
@@ -209,29 +186,41 @@ cat > $summary_file <<SUM
 Yum updates installed: $s_yum
 Ksplice kernel updates installed: $s_ksplice_kernel
 Ksplice user-space updates installed: $s_ksplice_user
+Uptime:$(uptime)
 
 SUM
 
-# Add summary
+summary=$(read_file $summary_file)
+
+# Insert summary
 cat $out_file >> $summary_file
 mv -f $summary_file $out_file
 
-# Add needs-restarting output
+# Append Ksplice updates status
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "|  Needs-restarting report                                               |" | tee -a $out_file
+echo "|  Ksplice updates status                                                |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running needs-restarting" | tee -a $out_file
+echo "Running 'ksplice all show'." | tee -a $out_file
+ksplice all show 2>&1 | tee -a $out_file
+
+# Append needs-restarting status
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Needs-restarting status                                               |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "Running 'needs-restarting'." | tee -a $out_file
 needs-restarting 2>&1 | tee -a $out_file
-echo ------------------------------------------------------------------------ | tee -a $out_file
-echo "Running needs-restarting --services" | tee -a $out_file
+echo "--------------------------------------------------------------------------" | tee -a $out_file
+echo "Running 'needs-restarting --services'." | tee -a $out_file
 needs-restarting --services 2>&1 | tee -a $out_file
-echo ------------------------------------------------------------------------ | tee -a $out_file
-echo "Running needs-restarting --reboothint" | tee -a $out_file
+echo "--------------------------------------------------------------------------" | tee -a $out_file
+echo "Running 'needs-restarting --reboothint'." | tee -a $out_file
 needs-restarting --reboothint 2>&1 | tee -a $out_file
-echo | tee -a $out_file
+
+echo "$summary"
 
 # send notification
 if [ $notify -eq 1 ]; then
+    echo
     al-notify -t "$title" -f "$out_file"
 fi
 cat $out_file >> $log_file
