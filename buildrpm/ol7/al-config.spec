@@ -1,13 +1,13 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.12%{?dist}
+Release: 1.0.13.dev0%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
 Group: Development/Tools
 URL: http://cloud.oracle.com/iaas
 License: UPL
-Vendor: Oracle
+Vendor: Oracle America
 
 Source: %{name}-%{version}.tar.gz
 
@@ -37,6 +37,7 @@ cp -a install/*  %{buildroot}
 #/usr/lib
 %dir %{_prefix}/lib/%{name}
 %attr(644,root,root) %{_prefix}/lib/%{name}/functions
+%attr(755,root,root) %{_prefix}/lib/%{name}/pre_config.sh
 %attr(755,root,root) %{_prefix}/lib/%{name}/add_cron_job.sh
 #/usr/sbin
 %attr(755,root,root) %{_sbindir}/al-config
@@ -52,38 +53,8 @@ cp -a install/*  %{buildroot}
 %license LICENSE
 
 %post
-if [ -f /etc/uptrack/uptrack.conf ]; then
-    # enable ksplice auto update
-    sed -i 's/^\(autoinstall =\).*/\1 yes/' /etc/uptrack/uptrack.conf
-    # enable Known-Exploit-Detection
-    if ! grep -q 'Known-Exploit-Detection' /etc/uptrack/uptrack.conf; then
-        cat >> /etc/uptrack/uptrack.conf <<EOF
-
-[Known-Exploit-Detection]
-# Known Exploit Detection is another way Ksplice secures your system.
-# Ksplice continues to close down vulnerabilities with zero downtime.
-# And now you have the added security of being notified when attempted
-# privilege escalation attacks are taken on your system.
-enabled = yes
-EOF
-    fi
-fi
-
-# We have AL cron job to do ksplice and yum-cron update, so we don't need ksplice and yum-cron cron jobs
-rm -f /etc/cron.d/uptrack /etc/cron.d/ksplice \
-      /etc/cron.hourly/0yum-hourly.cron \
-      /etc/cron.daily/0yum-daily.cron
-
-# Disable yum-cron default and hourly updates
-# we have separate config file /etc/al-config/yum-cron.conf
-for conf in /etc/yum/yum-cron.conf /etc/yum/yum-cron-hourly.conf; do
-    if [ -f $conf ]; then
-        sed -i -e 's/^\(apply_updates =\).*/\1 no/' \
-            -e 's/^\(download_updates =\).*/\1 no/' \
-            -e 's/^\(update_messages =\).*/\1 no/' \
-            $conf
-    fi
-done
+# install or upgrade
+%{_prefix}/lib/%{name}/pre_config.sh
 
 # install
 if [ "$1" = 1 ]; then
@@ -97,12 +68,12 @@ fi
 %preun
 # uninstall
 if [ "$1" = 0 ]; then
-    rm -f /etc/cron.d/al-update
+    rm -f %{_sysconfdir}/cron.d/al-update
     rm -f %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
 fi
 
 %postun
 
 %changelog
-* Fri Aug 30 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.12
+* Fri Aug 30 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.13
 - Initial commit.
