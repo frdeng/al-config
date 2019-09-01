@@ -12,6 +12,7 @@ oci_cli_config_file=$config_dir/oci_cli.conf
 oci_api_key_file=$config_dir/oci_api_key.pem
 yum_cron_config_file=$config_dir/yum-cron.conf
 al_state_file=/var/lib/al-config/state
+al_update_file=/var/lib/al-config/update
 al_cron_job_file=/etc/cron.d/al-update
 log_file=/var/log/al.log
 
