@@ -4,8 +4,8 @@
 # Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
 #
 # al-update:
+# - ksplice all upgrade
 # - yum-cron - yum upgrade
-# - ksplice kernel, user upgrade
 # - report exploit attemps if detected
 # - report ksplice all show
 # - report needs-restarting
@@ -26,9 +26,8 @@ generate_message_title () {
     # default title:
     local title="AL: Status update on instance $(hostname)"
     # set titile to "updates installed"
-    if [ $status_ksplice_kernel = yes -o $status_ksplice_user = yes \
-         -o $status_yum = yes ]; then
-        if [ $status_ksplice_kernel = yes -o $status_ksplice_user = yes ]; then
+    if [ $status_ksplice = yes -o $status_yum = yes ]; then
+        if [ $status_ksplice = yes ]; then
             s="Ksplice"
             [ $status_yum = yes ] && s="Ksplice and Yum"
             s="$s updates installed"
@@ -37,10 +36,8 @@ generate_message_title () {
         fi
     fi
     # set title to "upgrade failed"
-    if [ $status_ksplice_kernel = failed -o $status_ksplice_user = failed \
-         -o $status_yum = failed ]; then
-        if [ $status_ksplice_kernel = failed -o \
-             $status_ksplice_user = failed ]; then
+    if [ $status_ksplice = failed -o $status_yum = failed ]; then
+        if [ $status_ksplice = failed ]; then
             s="Ksplice"
             [ $status_yum = failed ] && s="Ksplice and Yum"
             s="$s upgrade failed"
@@ -48,9 +45,7 @@ generate_message_title () {
             [ $status_yum = failed ] && s="Yum upgrade failed"
         fi
     fi
-
     [ -n "$s" ] && title="AL: $s on instance $(hostname)"
-
     echo "$title"
 }
 
@@ -84,9 +79,8 @@ source_config_file
 # 3. Upgrade failed: failed
 
 # set default status to no
+status_ksplice=no
 status_yum=no
-status_ksplice_kernel=no
-status_ksplice_user=no
 
 # notify ?
 notify=0
@@ -100,10 +94,60 @@ out_file=$(mktemp $work_dir/msg_XXXX)
 
 ### Update starts ###
 
+# Pre-configure ksplice and yum for AL here
+# in case ksplice-tools, uptrack or yum-cron get updated at this point.
+/usr/lib/al-config/pre_config.sh
+
+# ksplice all upgrade
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+echo "|  Ksplice upgrade report                                                |" | tee -a $out_file
+echo "+------------------------------------------------------------------------+" | tee -a $out_file
+# TODO: what do we do if ksplice/uptrack is locked?
+echo "Running 'ksplice -y all upgrade'." | tee -a $out_file
+ksplice -y all upgrade 2>&1 | tee -a $out_file
+ret=${PIPESTATUS[0]}
+
+# Expected messages:
+# userspace
+# new package updates - Complete!
+# new live patches - Done!
+# no new updates - No packages marked for update
+#                  Nothing to do.
+# kernel:
+# new updates: Installing
+# new rollback: Removing?
+# no new updates: Nothing to be done.
+if egrep -q "^Complete!|^Done!^Installing|^Removing" $out_file; then
+    status_ksplice=yes
+fi
+# no user and kernel updates
+if grep -q "^Nothing to do." $out_file &&
+    grep -q "^Nothing to be done." $out_file; then
+    status_ksplice=no
+fi
+# If none of the expected messages is matched
+# we consider ksplice upgrade failed.
+if ! egrep -q "^Complete!|^Done!^Installing|^Removing" $out_file &&
+    ! grep -q "^Nothing to do." $out_file &&
+    ! grep -q "^Nothing to be done." $out_file; then
+    status_ksplice=failed
+fi
+# set it to failed
+[ $ret -ne 0 ] && status_ksplice=failed
+
+# Pre-configure ksplice and yum for AL here
+# in case ksplice-tools, uptrack or yum-cron get updated at this point.
+/usr/lib/al-config/pre_config.sh
+
 # yum-cron
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 echo "|  Yum upgrade report                                                    |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
+# TODO: what do we do if yum is locked?
+# e.g.:
+# Existing lock /var/run/yum.pid: another copy is running as pid 21684.
+# Another app is currently holding the yum lock; waiting for it to exit...
+
 echo "Running 'yum-cron' with update cmd: default." | tee -a $out_file
 yum-cron $yum_cron_config_file 2>&1 | tee -a $out_file
 [ ${PIPESTATUS[0]} -ne 0 ] && status_yum=failed
@@ -114,68 +158,29 @@ if tail $out_file | grep -q "^The updates were successfully applied"; then
     status_yum=yes
 fi
 
-# Pre-configure ksplice and yum for AL here
-# in case ksplice-tools, uptrack or yum-cron get updated at this point.
-/usr/lib/al-config/pre_config.sh
-
-# ksplice kernel upgrade
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "|  Ksplice kernel upgrade report                                         |" | tee -a $out_file
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running 'uptrack-upgrade -y'." | tee -a $out_file
-uptrack-upgrade -y 2>&1 | tee -a $out_file
-[ ${PIPESTATUS[0]} -ne 0 ] && status_ksplice_kernel=failed
-
-# new updates: Installing
-# new rollback: Removing?
-# no new updates: Nothing to be done.
-if ! tail $out_file | grep -q "^Nothing to be done."; then
-    if tail $out_file | egrep -q "^Installing|^Removing"; then
-        status_ksplice_kernel=yes
-    fi
-fi
-
-# ksplice user-space upgrade
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "|  Ksplice user-space upgrade report                                     |" | tee -a $out_file
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running 'ksplice -y user upgrade'." | tee -a $out_file
-ksplice -y user upgrade 2>&1 | tee -a $out_file
-[ ${PIPESTATUS[0]} -ne 0 ] && status_ksplice_user=failed
-
-# new package updates - Complete!
-# new live patches - Done!
-# no new updates - No packages marked for update
-#                  Nothing to do.
-if ! tail $out_file | grep -q "^Nothing to do."; then
-    if egrep -q "^Complete!|^Done!" $out_file; then
-        status_ksplice_user=yes
-    fi
-fi
 ### Update is done ###
 
 # Set notify
 # When do we notify?
-# 1. No yum, ksplice_kernel, ksplice_user updates: *Do Not Notify*
+# 1. No yum, ksplice updates: *Do Not Notify*
 #      1) *Notify If* there is no last update
 #         This means this is the first update, we want to notify with
 #         "Status update"
 #      2) *Notify If* - last update failed
 #         This means the failure has recovered, and we want to notify with
 #         "Status update".
-# 2. Yum, ksplice_kernel or ksplice_user updates installed: *Always Notify*
-# 3. Yum, ksplice_kernel or ksplice_user upgrade failed: *Notify*
+# 2. Yum, or ksplice updates installed: *Always Notify*
+# 3. Yum, or ksplice upgrade failed: *Notify*
 #      1) *Do Not Notify If* - failure is same as last update
 #         This means the failure has repeated, and we don't want to send
 #         duplicate notification.
 #
 # so we record every update
 # - update details for failures
-# - update status, yum, ksplice kernel and user-space
+# - update status, yum and ksplice
 
-# 1. No yum, ksplice_kernel, ksplice_user updates: *Do Not Notify*
-if [ "$status_yum" = no -a "$status_ksplice_kernel" = no -a \
-     "$status_ksplice_user" = no ]; then
+# 1. No yum, ksplice updates: *Do Not Notify*
+if [ "$status_yum" = no -a "$status_ksplice" = no ]; then
     notify=0
     # 1) *Notify If* there is no last update
     # This means this is the first update, we want to notify with
@@ -189,14 +194,12 @@ if [ "$status_yum" = no -a "$status_ksplice_kernel" = no -a \
         notify=1
 fi
 
-# 2. Yum, ksplice_kernel or ksplice_user updates installed: *Always Notify*
-[ "$status_yum" = yes -o "$status_ksplice_kernel" = yes -o \
-     "$status_ksplice_user" = yes ] &&
+# 2. Yum, or ksplice updates installed: *Always Notify*
+[ "$status_yum" = yes -o "$status_ksplice" = yes ] &&
     notify=1
 
-# 3. Yum, ksplice_kernel or ksplice_user upgrade failed: *Notify*
-if [ "$status_yum" = failed -o "$status_ksplice_kernel" = failed -o \
-     "$status_ksplice_user" = failed ]; then
+# 3. Yum, or ksplice upgrade failed: *Notify*
+if [ "$status_yum" = failed -o "$status_ksplice" = failed ]; then
     notify=1
     # 1) *Do Not Notify If* - failure is same as last update
     #    This means the failure has repeated, and we don't want to send
@@ -209,8 +212,7 @@ fi
 cat > $al_state_file <<EOF
 $(date)
 yum:$status_yum
-ksplice_kernel:$status_ksplice_kernel
-ksplice_user:$status_ksplice_user
+ksplice:$status_ksplice
 EOF
 
 # Record update details
@@ -223,8 +225,7 @@ cat > $summary_file <<SUM
 |  Summary ($(date))                                |
 +------------------------------------------------------------------------+
 Yum updates installed: $status_yum
-Ksplice kernel updates installed: $status_ksplice_kernel
-Ksplice user-space updates installed: $status_ksplice_user
+Ksplice updates installed: $status_ksplice
 Uptime:$(uptime)
 
 SUM

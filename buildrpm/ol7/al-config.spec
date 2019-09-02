@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.15%{?dist}
+Release: 1.0.16%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -83,6 +83,9 @@ fi
 %postun
 
 %changelog
+* Sun Sep 1 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.16
+- Use 'ksplice -y all upgrade'
+
 * Sun Sep 1 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.15
 - Activate known exploit detection on boot.
 - Include detected exploit attemps in notification message.
