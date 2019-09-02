@@ -66,7 +66,7 @@ if [ "$1" = 1 ]; then
         %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
     # activate known exploit detecton on each boot
     mkdir -p %{_sharedstatedir}/cloud/scripts/per-boot
-    ln -sf %{_prefix/lib/%{name}/activate_known_exploit_detection.sh \
+    ln -sf %{_prefix}/lib/%{name}/activate_known_exploit_detection.sh \
         %{_sharedstatedir}/cloud/scripts/per-boot/al.sh
 fi
 
