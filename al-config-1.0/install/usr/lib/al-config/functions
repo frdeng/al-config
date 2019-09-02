@@ -16,11 +16,11 @@ al_update_file=/var/lib/al-config/update
 al_cron_job_file=/etc/cron.d/al-update
 log_file=/var/log/al.log
 
-log () {
+log() {
     echo "$(date) - $*" | tee -a "$log_file"
 }
 
-source_config_file () {
+source_config_file() {
     if [ ! -f "$config_file" ]; then
         echo "$config_file doesn't exist." >&2
         exit 1
@@ -28,14 +28,14 @@ source_config_file () {
     . "$config_file"
 }
 
-run_as_root_check () {
+run_as_root_check() {
     if [ $(id -u) != 0 ]; then
         echo "Please run as root." >&2
         exit 1
     fi
 }
 
-read_file () {
+read_file() {
     local f="$1"
     if [[ $f =~ ^(https?|ftp|file):// ]]; then
         curl -sfm 25 "$f" 2>/dev/null
@@ -44,4 +44,34 @@ read_file () {
             cat "$f"
         fi
     fi
+}
+
+is_known_exploit_detection_activated() {
+    local activated
+    if [ -e /proc/sys/kernel/known_exploit_detection ]; then
+        activated=$(cat /proc/sys/kernel/known_exploit_detection)
+        [ "$activated" = 1 ] && return 0
+    fi
+    return 1
+}
+
+enable_known_exploit_detection() {
+    if [ -f /etc/uptrack/uptrack.conf ]; then
+        if ! grep -q 'Known-Exploit-Detection' /etc/uptrack/uptrack.conf; then
+            cat >> /etc/uptrack/uptrack.conf <<EOF
+
+[Known-Exploit-Detection]
+# Known Exploit Detection is another way Ksplice secures your system.
+# Ksplice continues to close down vulnerabilities with zero downtime.
+# And now you have the added security of being notified when attempted
+# privilege escalation attacks are taken on your system.
+enabled = yes
+EOF
+        fi
+    fi
+}
+
+activate_known_exploit_detection() {
+    enable_known_exploit_detection
+    ksplice -y kernel upgrade &>/dev/null
 }

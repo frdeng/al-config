@@ -47,17 +47,5 @@ for cron in /etc/cron.d/uptrack /etc/cron.d/ksplice; do
     fi
 done
 
-# Enable ksplice Known-Exploit-Detection
-if [ -f /etc/uptrack/uptrack.conf ]; then
-    if ! grep -q 'Known-Exploit-Detection' /etc/uptrack/uptrack.conf; then
-        cat >> /etc/uptrack/uptrack.conf <<EOF
-
-[Known-Exploit-Detection]
-# Known Exploit Detection is another way Ksplice secures your system.
-# Ksplice continues to close down vulnerabilities with zero downtime.
-# And now you have the added security of being notified when attempted
-# privilege escalation attacks are taken on your system.
-enabled = yes
-EOF
-    fi
-fi
+# Enable known exploit detection
+enable_known_exploit_detection

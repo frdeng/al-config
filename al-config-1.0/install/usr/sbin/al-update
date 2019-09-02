@@ -6,6 +6,7 @@
 # al-update:
 # - yum-cron - yum upgrade
 # - ksplice kernel, user upgrade
+# - report exploit attemps if detected
 # - report ksplice all show
 # - report needs-restarting
 # - send notification if needed
@@ -233,6 +234,15 @@ summary=$(read_file $summary_file)
 # Insert summary
 cat $out_file >> $summary_file
 mv -f $summary_file $out_file
+
+# Append detected exploit attempts here.
+exploit_attempt=$(journalctl -b | grep "exploit attempt detected;")
+if [ -n "$exploit_attempt" ]; then
+    echo "+------------------------------------------------------------------------+" | tee -a $out_file
+    echo "|  Known exploit attempts detected                                       |" | tee -a $out_file
+    echo "+------------------------------------------------------------------------+" | tee -a $out_file
+    echo "$exploit_attempt" | tee -a $out_file
+fi
 
 # Append Ksplice updates status
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
