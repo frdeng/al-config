@@ -40,5 +40,5 @@ if [ ! -f "$al_cron_job_file" -o $force -eq 1 ]; then
 # Daily cron job for AL updates
 $(($RANDOM%60)) $(($RANDOM%24)) * * * root /usr/sbin/al-update &>/dev/null
 CRON
-
+    log "Created cron job file $al_cron_job_file ."
 fi

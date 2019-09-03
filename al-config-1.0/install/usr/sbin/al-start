@@ -1,0 +1,42 @@
+#!/bin/bash
+#
+# Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
+# Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
+#
+# al-start:
+
+. /usr/lib/al-config/functions
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [OPTION]...
+ -h This message
+EOF
+    exit 1
+}
+
+run_as_root_check
+
+while getopts "h" OPTION; do
+    case "$OPTION" in
+      h)
+        usage
+        ;;
+      *)
+        usage
+        ;;
+    esac
+done
+
+acquire_lock
+
+# pre config
+/usr/lib/al-config/pre_config.sh
+
+# activate know exploit detection
+/usr/lib/al-config/activate_known_exploit_detection.sh
+
+# add cron job if the cron job doesn't exit
+/usr/lib/al-config/add_cron_job.sh
+
+release_lock

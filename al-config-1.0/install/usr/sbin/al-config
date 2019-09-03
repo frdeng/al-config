@@ -14,8 +14,8 @@ Usage: $0 [OPTION]...
  -u OCI User OCID
  -k OCI API key file
  -f OCI API public key fingerprint
- -p OCI API key pass phrase
- -t OCI tenancy ocid
+ -p OCI API key pass phrase if used
+ -t OCI tenancy OCID
  -c OCI compartment name
  -n OCI notification service topic name
  -h This message
@@ -57,9 +57,8 @@ while getopts "u:k:p:f:t:c:n:h" OPTION; do
     esac
 done
 
-if [ -z "$oci_user" -o -z "$oci_key_file_from" \
-     -o -z "$oci_key_fingerprint" -o -z "$oci_tenancy" \
-     -o -z "$oci_compartment" -o -z "$oci_topic" ]; then
+if [ -z "$oci_user" -o -z "$oci_key_file_from" -o -z "$oci_key_fingerprint" -o \
+    -z "$oci_tenancy" -o -z "$oci_compartment" -o -z "$oci_topic" ]; then
     usage
 fi
 
@@ -70,7 +69,8 @@ if [ -z "$oci_key_file_content" ]; then
 fi
 
 # initial config
-region=$(curl -sfm 25 http://169.254.169.254/opc/v1/instance/canonicalRegionName 2>/dev/null)
+region=$(curl -sfm 25 \
+    http://169.254.169.254/opc/v1/instance/canonicalRegionName 2>/dev/null)
 
 cat > $oci_cli_config_file <<CONFIG
 [DEFAULT]

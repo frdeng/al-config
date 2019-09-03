@@ -1,0 +1,13 @@
+[Unit]
+Description=Autonomous Linux configuration service
+After=uptrack-prefetch.service yum-cron.service
+Before=crond.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/al-start
+
+[Install]
+WantedBy=multi-user.target
+

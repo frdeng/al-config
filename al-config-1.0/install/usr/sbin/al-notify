@@ -82,8 +82,9 @@ if [ -z "$compartment_id" ]; then
 fi
 
 # get topic id
-topic_id=$($OCI ons topic list --compartment-id $compartment_id --all 2>/dev/null | \
-    jq -r ".data | .[]  | select(.\"name\" == \"$topic\") | .\"topic-id\"")
+topic_id=$($OCI ons topic list --compartment-id $compartment_id --all \
+    2>/dev/null | jq -r ".data | .[]  | select(.\"name\" == \"$topic\") | \
+    .\"topic-id\"")
 
 if [ -z "$topic_id" ]; then
     echo "Could not find topic $topic OCID." >&2
@@ -106,13 +107,17 @@ if [ $multi_email -eq 1 ]; then
     for file in $files; do
         index=${file##*.}
         t="[$(($index+1))/$count] $title"
-        echo "Publishing message with title '$t'"
+        log "Publishing message '$t'"
         message=$(read_file "$file")
-        $OCI ons message publish --topic-id $topic_id --title "$t" --body "$message"
+        $OCI ons message publish --topic-id $topic_id --title "$t" \
+            --body "$message" &&
+        log "Published message '$t'"
     done
     rm -f $files
 else
     message=$(read_file "$file")
-    echo "Publishing message with title '$title'"
-    $OCI ons message publish --topic-id $topic_id --title "$title" --body "$message"
+    log "Publishing message '$title'"
+    $OCI ons message publish --topic-id $topic_id --title "$title" \
+        --body "$message" &&
+    log "Published message '$title'"
 fi

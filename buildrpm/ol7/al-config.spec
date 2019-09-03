@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.16%{?dist}
+Release: 1.0.17%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -40,14 +40,19 @@ cp -a install/*  %{buildroot}
 %attr(755,root,root) %{_prefix}/lib/%{name}/pre_config.sh
 %attr(755,root,root) %{_prefix}/lib/%{name}/add_cron_job.sh
 %attr(755,root,root) %{_prefix}/lib/%{name}/activate_known_exploit_detection.sh
+%attr(644,root,root) %{_prefix}/lib/systemd/system/al-config.service
+%attr(644,root,root) %{_prefix}/lib/systemd/system-preset/84-al.preset
 #/usr/sbin
 %attr(755,root,root) %{_sbindir}/al-config
+%attr(755,root,root) %{_sbindir}/al-start
 %attr(755,root,root) %{_sbindir}/al-update
 %attr(755,root,root) %{_sbindir}/al-notify
+%attr(755,root,root) %{_sbindir}/al-exploit-alert
 #/etc
 %attr(644,root,root) %config(noreplace) %{_sysconfdir}/%{name}/al.conf
 %attr(644,root,root) %{_sysconfdir}/%{name}/yum-cron.conf
 %attr(644,root,root) %{_sysconfdir}/logrotate.d/%{name}
+%attr(644,root,root) %{_sysconfdir}/rsyslog.d/al-exploit-alert.conf
 #/var
 %dir %{_sharedstatedir}/%{name}
 
@@ -58,31 +63,25 @@ cp -a install/*  %{buildroot}
 %{_prefix}/lib/%{name}/pre_config.sh
 
 # install
-if [ "$1" = 1 ]; then
-    # TODO: use systemd service to handle following:
-    # We only create random time cron job on fist boot
-    mkdir -p %{_sharedstatedir}/cloud/scripts/per-instance
-    ln -sf  %{_prefix}/lib/%{name}/add_cron_job.sh \
-        %{_sharedstatedir}/cloud/scripts/per-instance/al.sh
-    # activate known exploit detecton on each boot
-    mkdir -p %{_sharedstatedir}/cloud/scripts/per-boot
-    ln -sf %{_prefix}/lib/%{name}/activate_known_exploit_detection.sh \
-        %{_sharedstatedir}/cloud/scripts/per-boot/al.sh
-fi
+%systemd_post %{name}.service
 
 %posttrans
 
 %preun
+%systemd_preun %{name}.service
 # uninstall
 if [ "$1" = 0 ]; then
     rm -f %{_sysconfdir}/cron.d/al-update
-    rm -f %{_sharedstatedir}/cloud/scripts/per-instance/al.sh \
-          %{_sharedstatedir}/cloud/scripts/per-boot/al.sh
 fi
 
 %postun
+%systemd_postun_with_restart %{name}.service
 
 %changelog
+* Tue Sep 3 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.17
+- Add al-config.service to create cron job and activate exploit detection.
+- Add al-exploit-alert and rsyslog rule to trigger exploit alert
+
 * Sun Sep 1 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.16
 - Use 'ksplice -y all upgrade'
 

@@ -16,8 +16,12 @@ al_update_file=/var/lib/al-config/update
 al_cron_job_file=/etc/cron.d/al-update
 log_file=/var/log/al.log
 
+work_dir=/var/run/al-config
+mkdir -p $work_dir
+
 log() {
-    echo "$(date) - $*" | tee -a "$log_file"
+    echo "$*"
+    echo "$(date) - $*" >> "$log_file"
 }
 
 source_config_file() {
@@ -35,6 +39,21 @@ run_as_root_check() {
     fi
 }
 
+acquire_lock() {
+    local lock_file=/var/run/$(basename $0).lock
+    if [ -e $lock_file ]; then
+        echo "$0 is already running." >&2
+        echo "If you are sure it is not running, please delete $lock_file and re-run." >&2
+        exit 1
+    fi
+    touch $lock_file
+}
+
+release_lock() {
+    local lock_file=/var/run/$(basename $0).lock
+    rm -f $lock_file
+}
+
 read_file() {
     local f="$1"
     if [[ $f =~ ^(https?|ftp|file):// ]]; then
@@ -44,6 +63,10 @@ read_file() {
             cat "$f"
         fi
     fi
+}
+
+get_instance_name() {
+    curl -sfm 25 http://169.254.169.254/opc/v1/instance/displayName
 }
 
 is_known_exploit_detection_activated() {

@@ -23,8 +23,9 @@ EOF
 
 generate_message_title () {
     local s=""
+    local instance_name=$(get_instance_name)
     # default title:
-    local title="AL: Status update on instance $(hostname)"
+    local title="AL: Status update on instance $instance_name"
     # set titile to "updates installed"
     if [ $status_ksplice = yes -o $status_yum = yes ]; then
         if [ $status_ksplice = yes ]; then
@@ -45,7 +46,7 @@ generate_message_title () {
             [ $status_yum = failed ] && s="Yum upgrade failed"
         fi
     fi
-    [ -n "$s" ] && title="AL: $s on instance $(hostname)"
+    [ -n "$s" ] && title="AL: $s on instance $instance_name"
     echo "$title"
 }
 
@@ -62,13 +63,7 @@ while getopts "h" OPTION; do
     esac
 done
 
-lock_file=/var/run/$(basename $0).lock
-if [ -e $lock_file ]; then
-    echo "$0 is already running." >&2
-    echo "If you are sure it is not running, please delete $lock_file and re-run." >&2
-    exit 1
-fi
-touch $lock_file
+acquire_lock
 
 source_config_file
 
@@ -84,10 +79,6 @@ status_yum=no
 
 # notify ?
 notify=0
-
-# work dir
-work_dir=/var/run/al-config
-mkdir -p $work_dir
 
 # temp file that contains command outputs
 out_file=$(mktemp $work_dir/msg_XXXX)
@@ -105,35 +96,32 @@ echo "+------------------------------------------------------------------------+
 # TODO: what do we do if ksplice/uptrack is locked?
 echo "Running 'ksplice -y all upgrade'." | tee -a $out_file
 ksplice -y all upgrade 2>&1 | tee -a $out_file
-ret=${PIPESTATUS[0]}
 
-# Expected messages:
-# userspace
-# new package updates - Complete!
-# new live patches - Done!
-# no new updates - No packages marked for update
-#                  Nothing to do.
-# kernel:
-# new updates: Installing
-# new rollback: Removing?
-# no new updates: Nothing to be done.
-if egrep -q "^Complete!|^Done!^Installing|^Removing" $out_file; then
-    status_ksplice=yes
-fi
-# no user and kernel updates
-if grep -q "^Nothing to do." $out_file &&
-    grep -q "^Nothing to be done." $out_file; then
-    status_ksplice=no
-fi
-# If none of the expected messages is matched
-# we consider ksplice upgrade failed.
-if ! egrep -q "^Complete!|^Done!^Installing|^Removing" $out_file &&
-    ! grep -q "^Nothing to do." $out_file &&
-    ! grep -q "^Nothing to be done." $out_file; then
-    status_ksplice=failed
-fi
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
 # set it to failed
-[ $ret -ne 0 ] && status_ksplice=failed
+    status_ksplice=failed
+else
+    # Expected output:
+    # userspace packages:
+    #  - new package updates - Complete!
+    #  - no new package updates - No packages marked for update
+    # userspace live patches:
+    #  - new userspace live patches - Done!
+    #  - no live patches -  Nothing to do.
+    # kernel live patches:
+    #  - new updates: Installing [6z9ikf22]
+    #  - new rollback: Removing [6z9ikf22]
+    #  - no new updates: Nothing to be done.
+
+    # no user and kernel updates
+    if grep -q "^Nothing to do." $out_file && grep -q "^Nothing to be done." \
+        $out_file && grep -q "^No packages marked for update" $out_file; then
+        status_ksplice=no
+    fi
+    if grep -q -E "^Complete\!|^Done\!|^Installing \[|^Removing \[" $out_file; then
+        status_ksplice=yes
+    fi
+fi
 
 # Pre-configure ksplice and yum for AL here
 # in case ksplice-tools, uptrack or yum-cron get updated at this point.
@@ -150,12 +138,15 @@ echo "+------------------------------------------------------------------------+
 
 echo "Running 'yum-cron' with update cmd: default." | tee -a $out_file
 yum-cron $yum_cron_config_file 2>&1 | tee -a $out_file
-[ ${PIPESTATUS[0]} -ne 0 ] && status_yum=failed
 
-# new updates - The updates were successfully applied
-# no new updates -
-if tail $out_file | grep -q "^The updates were successfully applied"; then
-    status_yum=yes
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    status_yum=failed
+else
+    # new updates - The updates were successfully applied
+    # no new updates -
+    if tail $out_file | grep -q "^The updates were successfully applied"; then
+        status_yum=yes
+    fi
 fi
 
 ### Update is done ###
@@ -227,7 +218,6 @@ cat > $summary_file <<SUM
 Yum updates installed: $status_yum
 Ksplice updates installed: $status_ksplice
 Uptime:$(uptime)
-
 SUM
 
 summary=$(read_file $summary_file)
@@ -279,4 +269,4 @@ cat $out_file >> $log_file
 rm -f $out_file
 
 # finally remove the lock
-rm -f $lock_file
+release_lock
