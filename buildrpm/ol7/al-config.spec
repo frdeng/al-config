@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.18%{?dist}
+Release: 1.0.19%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -12,8 +12,6 @@ Vendor: Oracle America
 Source: %{name}-%{version}.tar.gz
 
 Requires: uptrack
-Requires: ksplice-tools
-Requires: ksplice-known-exploit-detection
 Requires: yum-cron
 Requires: jq
 Requires: python-oci-cli
@@ -88,6 +86,9 @@ fi
 %posttrans
 
 %changelog
+* Wed Sep 4 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.19
+- Use uptrack commands if ksplice is not available
+
 * Wed Sep 4 2019 Alex Burmashev <alexander.burmashev@oracle.com> - 1.0-1.0.18
 - Add selinux support for notification service, triggered by rsyslog omprog
 

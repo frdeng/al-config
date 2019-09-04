@@ -96,5 +96,5 @@ EOF
 
 activate_known_exploit_detection() {
     enable_known_exploit_detection
-    ksplice -y kernel upgrade &>/dev/null
+    command -v ksplice &>/dev/null && ksplice -y kernel upgrade &>/dev/null
 }

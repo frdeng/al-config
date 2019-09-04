@@ -4,10 +4,10 @@
 # Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
 #
 # al-update:
-# - ksplice all upgrade
+# - ksplice upgrade
 # - yum-cron - yum upgrade
-# - report exploit attemps if detected
-# - report ksplice all show
+# - report exploit attemp(s) if detected
+# - report ksplice show
 # - report needs-restarting
 # - send notification if needed
 
@@ -94,10 +94,18 @@ echo "+------------------------------------------------------------------------+
 echo "|  Ksplice upgrade report                                                |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 # TODO: what do we do if ksplice/uptrack is locked?
-echo "Running 'ksplice -y all upgrade'." | tee -a $out_file
-ksplice -y all upgrade 2>&1 | tee -a $out_file
+if command -v ksplice &>/dev/null; then
+    echo "Running 'ksplice -y all upgrade'." | tee -a $out_file
+    ksplice -y all upgrade 2>&1 | tee -a $out_file
+    ret=${PIPESTATUS[0]}
 
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
+else
+    echo "Running 'uptrack-upgrade -y'." | tee -a $out_file
+    uptrack-upgrade -y | tee -a $out_file
+    ret=${PIPESTATUS[0]}
+fi
+
+if [ $ret -ne 0 ]; then
 # set it to failed
     status_ksplice=failed
 else
@@ -239,8 +247,13 @@ fi
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
 echo "|  Ksplice updates status                                                |" | tee -a $out_file
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running 'ksplice all show'." | tee -a $out_file
-ksplice all show 2>&1 | tee -a $out_file
+if command -v ksplice &>/dev/null; then
+    echo "Running 'ksplice all show'." | tee -a $out_file
+    ksplice all show 2>&1 | tee -a $out_file
+else
+    echo "Running 'uptrack-show'." | tee -a $out_file
+    uptrack-show | tee -a $out_file
+fi
 
 # Append needs-restarting status
 echo "+------------------------------------------------------------------------+" | tee -a $out_file
