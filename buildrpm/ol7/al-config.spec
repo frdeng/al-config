@@ -66,31 +66,26 @@ install -m 0644 omprog_exploit_detection.pp %{buildroot}%{_datadir}/selinux/pack
 #/var
 %dir %{_sharedstatedir}/%{name}
 
-
 %license LICENSE
 
 %post
 # install or upgrade
 %{_prefix}/lib/%{name}/pre_config.sh
 %{_sbindir}/semodule -i %{_datadir}/selinux/packages/omprog_exploit_detection.pp
-# install
-
 %systemd_post %{name}.service
 
-%posttrans
-
 %preun
-%systemd_preun %{name}.service
-# uninstall
-if [ "$1" = 0 ]; then
+# uninstall, not upgrade
+if [ $1 -eq 0 ]; then
     rm -f %{_sysconfdir}/cron.d/al-update
+    %{_sbindir}/semodule -r omprog_exploit_detection &>/dev/null
 fi
+%systemd_preun %{name}.service
 
 %postun
 %systemd_postun_with_restart %{name}.service
-if [ $1 -eq 0 ]; then
-%{_sbindir}/semodule -n -r omprog_exploit_detection > /dev/null 2>&1
-fi
+
+%posttrans
 
 %changelog
 * Wed Sep 4 2019 Alex Burmashev <alexander.burmashev@oracle.com> - 1.0-1.0.18
