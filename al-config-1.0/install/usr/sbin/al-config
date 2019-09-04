@@ -98,6 +98,3 @@ if grep -q "^topic=" $config_file; then
 else
     echo "topic=$oci_topic" >> $config_file
 fi
-
-# add cron job if it doesn't exist
-/usr/lib/al-config/add_cron_job.sh
