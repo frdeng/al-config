@@ -28,25 +28,12 @@ generate_message_title () {
     local title="AL: Status update on instance $instance_name"
     # set titile to "updates installed"
     if [ $status_ksplice = yes -o $status_yum = yes ]; then
-        if [ $status_ksplice = yes ]; then
-            s="Ksplice"
-            [ $status_yum = yes ] && s="Ksplice and Yum"
-            s="$s updates installed"
-        else
-            [ $status_yum = yes ] && s="Yum updates installed"
-        fi
+       title="AL: Updates installed on instance $instance_name"
     fi
     # set title to "upgrade failed"
     if [ $status_ksplice = failed -o $status_yum = failed ]; then
-        if [ $status_ksplice = failed ]; then
-            s="Ksplice"
-            [ $status_yum = failed ] && s="Ksplice and Yum"
-            s="$s upgrade failed"
-        else
-            [ $status_yum = failed ] && s="Yum upgrade failed"
-        fi
+       title="AL: Upgrade failed on instance $instance_name"
     fi
-    [ -n "$s" ] && title="AL: $s on instance $instance_name"
     echo "$title"
 }
 

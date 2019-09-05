@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.19%{?dist}
+Release: 1.0.20%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -86,6 +86,9 @@ fi
 %posttrans
 
 %changelog
+* Thu Sep 5 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.20
+- Simplify email notification subject
+
 * Wed Sep 4 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.19
 - Use uptrack commands if ksplice is not available
 
