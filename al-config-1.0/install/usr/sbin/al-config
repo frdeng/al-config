@@ -12,12 +12,11 @@ usage() {
     cat >&2 << EOF
 Usage: $0 [OPTION]...
  -u OCI User OCID
+ -t OCI tenancy OCID
+ -T OCI notification service topic OCID
  -k OCI API key file
  -f OCI API public key fingerprint
- -p OCI API key pass phrase if used
- -t OCI tenancy OCID
- -c OCI compartment name
- -n OCI notification service topic name
+ -p OCI API key pass phrase file
  -h This message
 EOF
     exit 1
@@ -25,7 +24,7 @@ EOF
 
 run_as_root_check
 
-while getopts "u:k:p:f:t:c:n:h" OPTION; do
+while getopts "u:k:p:f:t:T:h" OPTION; do
     case "$OPTION" in
       u)
         oci_user=$OPTARG
@@ -34,7 +33,7 @@ while getopts "u:k:p:f:t:c:n:h" OPTION; do
         oci_key_file_from=$OPTARG
         ;;
       p)
-        oci_key_pass_phrase=$OPTARG
+        oci_key_pass_phrase_from=$OPTARG
         ;;
       f)
         oci_key_fingerprint=$OPTARG
@@ -42,10 +41,7 @@ while getopts "u:k:p:f:t:c:n:h" OPTION; do
       t)
         oci_tenancy=$OPTARG
         ;;
-      c)
-        oci_compartment=$OPTARG
-        ;;
-      n)
+      T)
         oci_topic=$OPTARG
         ;;
       h)
@@ -58,7 +54,7 @@ while getopts "u:k:p:f:t:c:n:h" OPTION; do
 done
 
 if [ -z "$oci_user" -o -z "$oci_key_file_from" -o -z "$oci_key_fingerprint" -o \
-    -z "$oci_tenancy" -o -z "$oci_compartment" -o -z "$oci_topic" ]; then
+    -z "$oci_tenancy" -o -z "$oci_topic" ]; then
     usage
 fi
 
@@ -66,6 +62,19 @@ oci_key_file_content=$(read_file "$oci_key_file_from")
 if [ -z "$oci_key_file_content" ]; then
     echo "Could not read $oci_key_file_from" >&2
     exit 1
+fi
+
+if [ -z "$oci_key_file_content" ]; then
+    echo "Could not read $oci_key_file_from" >&2
+    exit 1
+fi
+
+# It's ok that the key is not encrypted
+# So do not exit if key pass phrase file doesn't exit or empty
+if [ -f "$oci_key_pass_phrase_from" ]; then
+    oci_key_pass_phrase=$(read_file "$oci_key_pass_phrase_from")
+else
+    oci_key_pass_phrase=""
 fi
 
 # initial config
@@ -87,14 +96,21 @@ chmod 600 $oci_cli_config_file
 echo "$oci_key_file_content" > $oci_api_key_file
 chmod 600 $oci_api_key_file
 
-# set compartment and topic name to al.conf
-if grep -q "^compartment=" $config_file; then
-    sed -i "s/^compartment=.*/compartment=$oci_compartment/g" $config_file
-else
-    echo "compartment=$oci_compartment" >> $config_file
+log "Configured $oci_cli_config_file"
+
+if [ ! -f "$oci_config_file" ]; then
+    cat > $oci_config_file <<EOF
+# This file is a bourne shell snippet, and is sourced by the
+# script al-notify for configuration.
+
+EOF
 fi
-if grep -q "^topic=" $config_file; then
-    sed -i "s/^topic=.*/topic=$oci_topic/g" $config_file
+
+# set topic OCID to oci.conf
+if grep -q "^topic=" $oci_config_file; then
+    sed -i "s/^topic=.*/topic=$oci_topic/g" $oci_config_file
 else
-    echo "topic=$oci_topic" >> $config_file
+    echo "# OCI notification service topic OCID" >> $oci_config_file
+    echo "topic=$oci_topic" >> $oci_config_file
 fi
+log "Configured $oci_config_file"

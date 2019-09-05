@@ -7,20 +7,34 @@
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 config_dir=/etc/al-config
+# AL config
 config_file=$config_dir/al.conf
+# OCI config: topic OCID etc.
+oci_config_file=$config_dir/oci.conf
+# OCI SDK/CLI config
 oci_cli_config_file=$config_dir/oci_cli.conf
+# OCI API private key
 oci_api_key_file=$config_dir/oci_api_key.pem
+# Yum-cron config
 yum_cron_config_file=$config_dir/yum-cron.conf
+# cron job
+al_cron_job_file=/etc/cron.d/al-update
+# log
+log_file=/var/log/al.log
+# state
 al_state_file=/var/lib/al-config/state
 al_update_file=/var/lib/al-config/update
-al_cron_job_file=/etc/cron.d/al-update
-log_file=/var/log/al.log
 
 work_dir=/var/run/al-config
 mkdir -p $work_dir
 
 log() {
     echo "$*"
+    echo "$(date) - $*" >> "$log_file"
+}
+
+log_error() {
+    echo "$*" >&2
     echo "$(date) - $*" >> "$log_file"
 }
 

@@ -52,8 +52,6 @@ done
 
 acquire_lock
 
-source_config_file
-
 ## status
 # Types of status:
 # 1. Updates installed: yes
@@ -72,6 +70,7 @@ out_file=$(mktemp $work_dir/msg_XXXX)
 
 ### Update starts ###
 
+log "Starting upgrade."
 # Pre-configure ksplice and yum for AL here
 # in case ksplice-tools, uptrack or yum-cron get updated at this point.
 /usr/lib/al-config/pre_config.sh
@@ -133,7 +132,6 @@ echo "+------------------------------------------------------------------------+
 
 echo "Running 'yum-cron' with update cmd: default." | tee -a $out_file
 yum-cron $yum_cron_config_file 2>&1 | tee -a $out_file
-
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     status_yum=failed
 else
@@ -257,6 +255,9 @@ needs-restarting --reboothint 2>&1 | tee -a $out_file
 
 echo "$summary"
 
+# update log
+cat $out_file >> $log_file
+
 # send notification
 if [ $notify -eq 1 ]; then
     echo
@@ -264,9 +265,9 @@ if [ $notify -eq 1 ]; then
     al-notify -t "$title" -f "$out_file"
 fi
 
-# update log
-cat $out_file >> $log_file
 rm -f $out_file
+
+log "Upgrade completed."
 
 # finally remove the lock
 release_lock
