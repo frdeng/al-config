@@ -71,7 +71,7 @@ fi
 
 # It's ok that the key is not encrypted
 # So do not exit if key pass phrase file doesn't exit or empty
-if [ -f "$oci_key_pass_phrase_from" ]; then
+if [ -n "$oci_key_pass_phrase_from" ]; then
     oci_key_pass_phrase=$(read_file "$oci_key_pass_phrase_from")
 else
     oci_key_pass_phrase=""
