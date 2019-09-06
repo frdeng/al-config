@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.22%{?dist}
+Release: 1.0.23%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -14,9 +14,9 @@ Source: %{name}-%{version}.tar.gz
 Requires: uptrack
 Requires: yum-cron
 Requires: jq
+Requires: openssl
 Requires: python-oci-cli
 Requires: python-oci-sdk
-Requires: cloud-init
 Requires: policycoreutils
 Requires: selinux-policy
 Buildrequires: checkpolicy policycoreutils-python
@@ -86,6 +86,9 @@ fi
 %posttrans
 
 %changelog
+* Fri Sep 6 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.23
+- Try OCI CLI with instance principal auth if CLI config is not available
+
 * Thu Sep 5 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.22
 - Allow to configure api key passphrase from url
 

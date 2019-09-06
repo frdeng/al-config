@@ -10,7 +10,7 @@
 
 usage() {
     cat >&2 << EOF
-Usage: $0 [OPTION]...
+Usage: ${0##*/} [OPTION]...
  -t Message title
  -f File that contains message body
  -h This message
@@ -22,17 +22,42 @@ EOF
 # $2 - title
 # $3 - body
 publish_message() {
-    local out ret
+    local out ret0 ret1 out0 out1
     log "Publishing message '$2'"
-    out=$($OCI ons message publish --topic-id "$1" --title "$2" --body "$3" \
-        2>&1)
-    ret=$?
-    if [ $ret -ne 0 ]; then
-        log_error "$out"
-        log_error "Failed to publish message '$2'"
-        return $ret
+    # oci config auth
+    if [ $instance_principal -eq 0 ]; then
+        out0=$($OCI_CONFIG_AUTH ons message publish --topic-id "$1" \
+            --title "$2" --body "$3" 2>&1)
+        ret0=$?
+        if [ $ret0 -ne 0 ]; then
+            # wait a second, we do second try with instance principal auth
+            sleep 1
+            out1=$($OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
+                --topic-id "$1" --title "$2" --body "$3" 2>&1)
+            ret1=$?
+            if [ $ret1 -ne 0 ]; then
+                log_error "Failed to publish message '$2'"
+                log_error "$out0"
+                log_error "$out1"
+                return $ret0
+            else
+                log "Published message '$2'"
+            fi
+        else
+            log "Published message '$2'"
+        fi
     else
-        log "Published message '$2'"
+        # instance principal auth
+        out1=$($OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
+            --topic-id "$1" --title "$2" --body "$3" 2>&1)
+        ret1=$?
+        if [ $ret1 -ne 0 ]; then
+            log_error "Failed to publish message '$2'"
+            log_error "$out1"
+            return $ret1
+        else
+            log "Published message '$2'"
+        fi
     fi
 }
 
@@ -62,10 +87,9 @@ if [ ! -f "$file" ]; then
     exit 1
 fi
 
-# If oci config, oci cli config or api key doesn't exist, exit.
-if [ ! -f "$oci_config_file" -o ! -f "$oci_cli_config_file" -o ! -f \
-    "$oci_api_key_file" ]; then
-    echo "OCI CLI is not properly configured." >&2
+# If oci config doesn't exist, exit.
+if [ ! -f "$oci_config_file" ]; then
+    echo "OCI notification service topic is not configured." >&2
     echo "Please run al-config to configure OCI CLI." >&2
     exit 2
 fi
@@ -80,14 +104,23 @@ if [ -z "$topic" ]; then
     exit 1
 fi
 
-OCI="oci --config-file $oci_cli_config_file"
+# If oci cli config or api key doesn't exist
+# switch to instance principal authorization
+if [ -f "$oci_cli_config_file" -a -f "$oci_api_key_file" ]; then
+    instance_principal=0
+else
+    instance_principal=1
+fi
+
+OCI_INSTANCE_PRINCIPAL_AUTH="oci --auth instance_principal"
+OCI_CONFIG_AUTH="oci --config-file $oci_cli_config_file"
 
 # oci cli check: get region subscription
-if ! $OCI iam region-subscription list &>/dev/null; then
-    echo "OCI CLI is not properly configured." >&2
-    echo "Please run al-config to configure OCI CLI." >&2
-    exit 2
-fi
+#if ! $OCI iam region-subscription list &>/dev/null; then
+#    echo "OCI CLI is not properly configured." >&2
+#    echo "Please run al-config to configure OCI CLI." >&2
+#    exit 2
+#fi
 
 size=$(stat -c %s $file)
 if [ $size -gt 65536 ]; then
@@ -100,9 +133,12 @@ if [ $size -gt 65536 ]; then
         log "Publishing message '$t'"
         body=$(read_file "$f")
         publish_message "$topic" "$t" "$body"
+        ret=$?
     done
     rm -f $files
 else
     body=$(read_file "$file")
     publish_message "$topic" "$title" "$body"
+    ret=$?
 fi
+exit $ret
