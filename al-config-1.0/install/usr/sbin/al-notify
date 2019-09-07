@@ -89,8 +89,8 @@ fi
 
 # If oci config doesn't exist, exit.
 if [ ! -f "$oci_config_file" ]; then
-    echo "OCI notification service topic is not configured." >&2
-    echo "Please run al-config to configure OCI CLI." >&2
+    log_error "OCI notification service topic is not configured." >&2
+    log_error "Please configure OCI notification service topic OCID with al-config." >&2
     exit 2
 fi
 
@@ -99,8 +99,8 @@ fi
 
 # If topic ocid is not set, exit.
 if [ -z "$topic" ]; then
-    echo "Please configure OCI notification service topic OCID in
- $oci_config_file." >&2
+    log_error "OCI notification service topic is not configured." >&2
+    log_error "Please configure OCI notification service topic OCID with al-config." >&2
     exit 1
 fi
 

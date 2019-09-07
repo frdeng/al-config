@@ -103,7 +103,7 @@ if [ -n "$oci_user" -a -n "$oci_api_private_key_from" -a \
     oci_key_passphrase=""
     if [ $require_passphrase -eq 1 ]; then
         if [ -z "$oci_key_passphrase_from" ]; then
-            echo "Key passphrase is required." >&2
+            echo "API key passphrase is required." >&2
             exit 1
         fi
         if [ ! -r "$oci_key_passphrase_from" ]; then

@@ -9,7 +9,7 @@
 
 usage() {
     cat >&2 << EOF
-Usage: $0 [OPTION]...
+Usage: ${0##*/} [OPTION]...
  -h This message
 EOF
     exit 1

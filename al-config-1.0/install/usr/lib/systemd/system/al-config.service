@@ -1,7 +1,8 @@
 [Unit]
 Description=Autonomous Linux configuration service
-After=uptrack-prefetch.service yum-cron.service
+After=uptrack-prefetch.service
 Before=crond.service
+Conflicts=yum-cron.service
 
 [Service]
 Type=oneshot
