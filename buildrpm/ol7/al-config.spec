@@ -86,7 +86,8 @@ fi
 %posttrans
 
 %changelog
-* Fri Sep 6 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.25
+* Sat Sep 7 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.25
+- Always try to send notification if the notification didn't send last time
 - Log exploit attempt beforing sending notification
 
 * Fri Sep 6 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.24

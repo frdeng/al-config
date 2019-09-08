@@ -158,6 +158,8 @@ fi
 #      1) *Do Not Notify If* - failure is same as last update
 #         This means the failure has repeated, and we don't want to send
 #         duplicate notification.
+# 4. Last notification failed: *Always Notify*
+#       We should always try to re-send
 #
 # so we record every update
 # - update details for failures
@@ -166,37 +168,61 @@ fi
 # 1. No yum, ksplice updates: *Do Not Notify*
 if [ "$status_yum" = no -a "$status_ksplice" = no ]; then
     notify=0
+    log_debug "No update."
     # 1) *Notify If* there is no last update
     # This means this is the first update, we want to notify with
     # Status update"
-    [ ! -f "$al_state_file" -o ! -f "$al_update_file" ] &&
+    if [ ! -f "$al_state_file" -o ! -f "$al_update_file" ]; then
         notify=1
+        log_debug "First run."
+    fi
     # 2) *Notify If* - last update failed
     #    This means the failure has recovered, and we want to notify with
     #    "Status update".
-    [ -f "$al_state_file" ] && grep -q failed "$al_state_file" &&
+    if [ -f "$al_state_file" ] && grep -q failed "$al_state_file"; then
         notify=1
+        log_debug "Failure recovered."
+    fi
 fi
 
 # 2. Yum, or ksplice updates installed: *Always Notify*
-[ "$status_yum" = yes -o "$status_ksplice" = yes ] &&
+if [ "$status_yum" = yes -o "$status_ksplice" = yes ]; then
     notify=1
+    log_debug "Updates installed."
+fi
 
 # 3. Yum, or ksplice upgrade failed: *Notify*
 if [ "$status_yum" = failed -o "$status_ksplice" = failed ]; then
     notify=1
+    log_debug "Upgrade failed."
     # 1) *Do Not Notify If* - failure is same as last update
     #    This means the failure has repeated, and we don't want to send
     #    duplicate notification.
-    [ -f "$al_update_file" ] && cmp -s $out_file $al_update_file &&
+    if [ -f "$al_update_file" ] && cmp -s $out_file $al_update_file; then
         notify=0
+        log_debug "Failure repeated."
+    fi
 fi
 
-# Update state file
-cat > $al_state_file <<EOF
-$(date)
-yum:$status_yum
-ksplice:$status_ksplice
+# 4. Last notification failed: *Always Notify*
+if [ -f "$al_state_file" ]; then
+    # not notify status or last status was no
+    if ! grep -q "^notify" $al_state_file || grep -q "^notify|no" \
+        $al_state_file; then
+        notify=1
+        log_debug "Notification didn't send on last upgrade."
+    fi
+fi
+
+# Incase /var/lib/al-config gets deleted
+mkdir -p /var/lib/al-config
+# Update yum and ksplice status in state file
+[ ! -f "$al_state_file" ] && touch $al_state_file
+# remove old status
+sed -i -e '/^yum/d' -e '/^ksplice/d' $al_state_file
+cat >> $al_state_file <<EOF
+yum|$status_yum|$(get_time)
+ksplice|$status_ksplice|$(get_time)
 EOF
 
 # Record update details
@@ -263,6 +289,16 @@ if [ $notify -eq 1 ]; then
     echo
     title=$(generate_message_title)
     al-notify -t "$title" -f "$out_file"
+    if [ $? -eq 0 ]; then
+        status_notify=yes
+    else
+        status_notify=no
+    fi
+    # update notify state
+    sed -i '/^notify/d' $al_state_file
+    cat >> $al_state_file <<EOF
+notify|$status_notify|$(get_time)
+EOF
 fi
 
 rm -f $out_file

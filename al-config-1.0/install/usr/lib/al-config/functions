@@ -25,17 +25,35 @@ log_file=/var/log/al.log
 al_state_file=/var/lib/al-config/state
 al_update_file=/var/lib/al-config/update
 
+# runtime work dir
 work_dir=/var/run/al-config
+
+# set default umask
+umask 0026
+
+# make sure runtime work dir is created
 mkdir -p $work_dir
 
+get_time() {
+    date "+%F %T,%3N"
+}
+
 log() {
+    log_info "$*"
+}
+
+log_info() {
     echo "$*"
-    echo "$(date) - $*" >> "$log_file"
+    echo "$(get_time) - ${0##*/}[INFO]: $*" >> "$log_file"
+}
+
+log_debug() {
+    echo "$(get_time) - ${0##*/}[DEBUG]: $*" >> "$log_file"
 }
 
 log_error() {
     echo "$*" >&2
-    echo "$(date) - $*" >> "$log_file"
+    echo "$(get_time) - ${0##*/}[ERROR]: $*" >> "$log_file"
 }
 
 source_config_file() {
@@ -54,7 +72,7 @@ run_as_root_check() {
 }
 
 acquire_lock() {
-    local lock_file=/var/run/$(basename $0).lock
+    local lock_file=/var/run/${0##*/}.lock
     if [ -e $lock_file ]; then
         echo "$0 is already running." >&2
         echo "If you are sure it is not running, please delete $lock_file and re-run." >&2
@@ -64,7 +82,7 @@ acquire_lock() {
 }
 
 release_lock() {
-    local lock_file=/var/run/$(basename $0).lock
+    local lock_file=/var/run/${0##*/}.lock
     rm -f $lock_file
 }
 
@@ -80,7 +98,7 @@ read_file() {
 }
 
 get_instance_name() {
-    curl -sfm 25 http://169.254.169.254/opc/v1/instance/displayName
+    curl -sfm 25 http://169.254.169.254/opc/v1/instance/displayName 2>/dev/null
 }
 
 is_known_exploit_detection_activated() {

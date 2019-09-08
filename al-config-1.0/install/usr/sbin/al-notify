@@ -21,24 +21,28 @@ EOF
 # $1 - topic id
 # $2 - title
 # $3 - body
+# global variables:
+# instance_principal, OCI_CLI_PROFILE_CONFIG, OCI_INSTANCE_PRINCIPAL_AUTH
 publish_message() {
     local out ret0 ret1 out0 out1
     log "Publishing message '$2'"
-    # oci config auth
+    # oci cli profile
     if [ $instance_principal -eq 0 ]; then
-        out0=$($OCI_CONFIG_AUTH ons message publish --topic-id "$1" \
+        log_debug "Running OCI CLI with profile config."
+        out0=$(oci $OCI_CLI_PROFILE_CONFIG ons message publish --topic-id "$1" \
             --title "$2" --body "$3" 2>&1)
         ret0=$?
+        log_debug "$out0"
         if [ $ret0 -ne 0 ]; then
             # wait a second, we do second try with instance principal auth
             sleep 1
-            out1=$($OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
+            log_debug "Running OCI CLI with instance principal auth."
+            out1=$(oci $OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
                 --topic-id "$1" --title "$2" --body "$3" 2>&1)
             ret1=$?
             if [ $ret1 -ne 0 ]; then
+                log_debug "$out1"
                 log_error "Failed to publish message '$2'"
-                log_error "$out0"
-                log_error "$out1"
                 return $ret0
             else
                 log "Published message '$2'"
@@ -48,12 +52,12 @@ publish_message() {
         fi
     else
         # instance principal auth
-        out1=$($OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
+        out1=$(oci $OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
             --topic-id "$1" --title "$2" --body "$3" 2>&1)
         ret1=$?
+        log_debug "$out1"
         if [ $ret1 -ne 0 ]; then
             log_error "Failed to publish message '$2'"
-            log_error "$out1"
             return $ret1
         else
             log "Published message '$2'"
@@ -112,15 +116,8 @@ else
     instance_principal=1
 fi
 
-OCI_INSTANCE_PRINCIPAL_AUTH="oci --auth instance_principal"
-OCI_CONFIG_AUTH="oci --config-file $oci_cli_config_file"
-
-# oci cli check: get region subscription
-#if ! $OCI iam region-subscription list &>/dev/null; then
-#    echo "OCI CLI is not properly configured." >&2
-#    echo "Please run al-config to configure OCI CLI." >&2
-#    exit 2
-#fi
+OCI_INSTANCE_PRINCIPAL_AUTH="--auth instance_principal"
+OCI_CLI_PROFILE_CONFIG="--config-file $oci_cli_config_file"
 
 size=$(stat -c %s $file)
 if [ $size -gt 65536 ]; then
@@ -130,10 +127,11 @@ if [ $size -gt 65536 ]; then
     for f in $files; do
         i=${f##*.}
         t="[$(($i+1))/$count] $title"
-        log "Publishing message '$t'"
         body=$(read_file "$f")
         publish_message "$topic" "$t" "$body"
         ret=$?
+        # wait a second
+        sleep 1
     done
     rm -f $files
 else

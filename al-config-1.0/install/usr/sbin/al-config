@@ -3,29 +3,30 @@
 # Copyright © 2019 Oracle Corp., Inc.  All rights reserved.
 # Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl
 #
-# al-config: configuration for OCI CLI
+# al-config: configure OCI notification topic OCID or OCI CLI profile
 #
 
 . /usr/lib/al-config/functions
 
 usage() {
     cat >&2 << EOF
-Usage:
-
-  Confugre OCI notification service topic OCID:
+Configure OCI notification service topic OCID:
+  Usage:
     ${0##*/} -T [topic OCID]
-
-  Configure OCI CLI:
-    ${0##*/} -u [user OCID] -t [tenancy OCID] -k [key file] -p [key passphrase file]
-
   Options:
-    -T OCI notification service topic OCID
-    -u OCI User OCID
-    -t OCI Tenancy OCID
-    -k The file that we read API private key from
-    -p The file that we read API key passphrase from, provide this if API
-       private key is encrypted
-    -h Display this message
+    -T [topic OCID] OCI notification service topic OCID
+
+Configure OCI CLI profile:
+  Usage:
+    ${0##*/} -u [user OCID] -t [tenancy OCID] -k [key file]
+  Options:
+    -u [user OCID] OCI User OCID
+    -t [tenancy OCID] OCI Tenancy OCID
+    -k [key file] from which we obtaion the API private key
+    -p [key passphrase file] from which we obtain API key passphrase. Provide
+       this if API private key is encrypted. If not provided, user will be
+       prompted to enter passphrase.
+
 EOF
     exit 1
 }
@@ -75,43 +76,11 @@ fi
 
 old_umask=$(umask)
 
-### configure ###
+### configuration ###
 
-## oci_cli.conf ##
+## OCI CLI profile - oci_cli.conf ##
 if [ -n "$oci_user" -a -n "$oci_api_private_key_from" -a \
     -n "$oci_tenancy" ]; then
-
-    if [ ! -r "$oci_api_private_key_from" ]; then
-        echo "Could not read file $oci_api_private_key_from" >&2
-        exit 1
-    fi
-
-    oci_api_private_key=$(read_file "$oci_api_private_key_from")
-    if [ -z "$oci_api_private_key" ]; then
-        echo "Invalid private key in $oci_api_private_key_from" >&2
-        exit 1
-    fi
-
-    require_passphrase=0
-    # check if the private key is encrytped
-    # line 2: ^Proc-Type: 4,ENCRYPTED$
-    if sed -n '2 p' "$oci_api_private_key_from" | \
-        grep -q "^Proc-Type:.*ENCRYPTED$"; then
-        require_passphrase=1
-    fi
-
-    oci_key_passphrase=""
-    if [ $require_passphrase -eq 1 ]; then
-        if [ -z "$oci_key_passphrase_from" ]; then
-            echo "API key passphrase is required." >&2
-            exit 1
-        fi
-        if [ ! -r "$oci_key_passphrase_from" ]; then
-            echo "Could not read file $oci_key_passphrase_from" >&2
-            exit 1
-        fi
-        oci_key_passphrase=$(read_file "$oci_key_passphrase_from")
-    fi
 
     # validate OCID
     if [[ ! $oci_user =~ ^ocid[0-9]\.user\. ]]; then
@@ -122,21 +91,94 @@ if [ -n "$oci_user" -a -n "$oci_api_private_key_from" -a \
         echo "Invalid tenancy OCID $oci_tenancy" >&2
         exit 2
     fi
+    # validate private key
+    if [ ! -r "$oci_api_private_key_from" ]; then
+        echo "Could not read file $oci_api_private_key_from" >&2
+        exit 2
+    fi
+
+    oci_api_private_key=$(read_file "$oci_api_private_key_from")
+    if [ -z "$oci_api_private_key" ]; then
+        echo "Invalid private key in $oci_api_private_key_from" >&2
+        exit 2
+    fi
+
+    require_passphrase=0
+    # check if the private key is encrytped
+    # line 2: ^Proc-Type: 4,ENCRYPTED$
+    if sed -n '2 p' "$oci_api_private_key_from" | \
+        grep -q "^Proc-Type:.*ENCRYPTED$"; then
+        require_passphrase=1
+    fi
+
+    # validate passphrase
+    oci_key_passphrase=""
+    if [ $require_passphrase -eq 1 ]; then
+        if [ -z "$oci_key_passphrase_from" ]; then
+            #echo "API key passphrase is required." >&2
+            #prompt user to enter passphrase
+            read -s -p "Enter passphrase for $oci_api_private_key_from: " \
+                oci_key_passphrase
+            echo
+            if [ -z "$oci_key_passphrase" ]; then
+                echo "Invalid passphrase for $oci_api_private_key_from" >&2
+                exit 3
+            fi
+            # create temp passphrase file with permission 600
+            passphrase_file=$(mktemp $work_dir/.passphrase_XXX)
+            cat > $passphrase_file <<EOF
+$oci_key_passphrase
+EOF
+
+        else
+            # key passphrase file provided
+            if [ ! -r "$oci_key_passphrase_from" ]; then
+                echo "Could not read file $oci_key_passphrase_from" >&2
+                exit 2
+            fi
+            oci_key_passphrase=$(read_file "$oci_key_passphrase_from")
+            passphrase_file="$oci_key_passphrase_from"
+        fi
+    fi
+    # validate passphrase
+    if ! openssl rsa -passin file:"$passphrase_file" -pubout -outform DER \
+        -in "$oci_api_private_key_from" &>/dev/null; then
+        # clean up temp passphrase file
+        if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
+            rm -f $passphrase_file
+        fi
+        echo "Incorrect passphrase for $oci_api_private_key_from" >&2
+        exit 3
+    fi
+
     # calculate the public key fingerprint
     if [ $require_passphrase -eq 1 ]; then
-        oci_key_fingerprint=$(openssl rsa -passin file:$oci_key_passphrase_from \
-            -pubout -outform DER -in $oci_api_private_key_from 2>/dev/null | \
+        oci_key_fingerprint=$(openssl rsa -passin file:"$passphrase_file" \
+            -pubout -outform DER -in "$oci_api_private_key_from" 2>/dev/null | \
             openssl md5 -c | awk '{print $2}')
+        # clean up passphrase file
+        if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
+            rm -f $passphrase_file
+        fi
     else
         oci_key_fingerprint=$(openssl rsa -pubout -outform DER \
-            -in $oci_api_private_key_from 2>/dev/null | openssl md5 -c | \
+            -in "$oci_api_private_key_from" 2>/dev/null | openssl md5 -c | \
             awk '{print $2}')
     fi
 
     region=$(curl -sfm 25 \
         http://169.254.169.254/opc/v1/instance/canonicalRegionName 2>/dev/null)
+    if [ -z "$region" ]; then
+        echo "Could not obtain OCI region." >&2
+        exit 3
+    fi
 
     umask 0066
+    # oci_api_key.pem
+    cat > $oci_api_key_file <<KEYFILE
+$oci_api_private_key
+KEYFILE
+
     # oci_cli.conf
     cat > $oci_cli_config_file <<CONFIG
 [DEFAULT]
@@ -148,13 +190,12 @@ tenancy = $oci_tenancy
 region = $region
 CONFIG
 
-    # oci_api_key.pem
-    cat > $oci_api_key_file <<KEYFILE
-    $oci_api_private_key
-KEYFILE
-
     umask $old_umask
-    log "Configured OCI CLI."
+    log "Configured OCI CLI profile."
+    echo "Please delete $oci_api_private_key_from"
+    if [ -f "$oci_key_passphrase_from" ]; then
+        echo "and $oci_key_passphrase_from"
+    fi
 fi
 
 ## oci.conf ##
@@ -174,11 +215,11 @@ if [ -n "$oci_topic" ]; then
 EOF
     fi
     if grep -q "^topic=" $oci_config_file; then
-        sed -i "s/^topic=.*/topic=$oci_topic/g" $oci_config_file
+        sed -i "s/^topic=.*/topic=\"$oci_topic\"/g" $oci_config_file
     else
         cat >> $oci_config_file <<EOF
 # OCI notification service topic OCID
-topic=$oci_topic
+topic="$oci_topic"
 EOF
     fi
     umask $old_umask
