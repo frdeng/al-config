@@ -52,6 +52,7 @@ publish_message() {
         fi
     else
         # instance principal auth
+        log_debug "Running OCI CLI with instance principal auth."
         out1=$(oci $OCI_INSTANCE_PRINCIPAL_AUTH ons message publish \
             --topic-id "$1" --title "$2" --body "$3" 2>&1)
         ret1=$?
