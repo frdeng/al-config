@@ -139,16 +139,16 @@ EOF
             oci_key_passphrase=$(read_file "$oci_key_passphrase_from")
             passphrase_file="$oci_key_passphrase_from"
         fi
-    fi
-    # validate passphrase
-    if ! openssl rsa -passin file:"$passphrase_file" -pubout -outform DER \
-        -in "$oci_api_private_key_from" &>/dev/null; then
-        # clean up temp passphrase file
-        if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
-            rm -f $passphrase_file
+        # validate passphrase
+        if ! openssl rsa -passin file:"$passphrase_file" -pubout -outform DER \
+            -in "$oci_api_private_key_from" &>/dev/null; then
+            # clean up temp passphrase file
+            if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
+                rm -f $passphrase_file
+            fi
+            echo "Incorrect passphrase for $oci_api_private_key_from" >&2
+            exit 3
         fi
-        echo "Incorrect passphrase for $oci_api_private_key_from" >&2
-        exit 3
     fi
 
     # calculate the public key fingerprint

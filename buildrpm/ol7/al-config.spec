@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.25%{?dist}
+Release: 1.0.26%{?dist}
 Summary: Configuration tasks for Autonomous Linux Oracle Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -86,6 +86,9 @@ fi
 %posttrans
 
 %changelog
+* Sat Sep 7 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.26
+- Fix for al-config for api key without passphrase
+
 * Sat Sep 7 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.25
 - Always try to send notification if the notification didn't send last time
 - Log exploit attempt beforing sending notification
