@@ -50,6 +50,8 @@ while getopts "h" OPTION; do
     esac
 done
 
+source_config_file
+
 acquire_lock
 
 ## status
@@ -266,18 +268,20 @@ else
     uptrack-show | tee -a $out_file
 fi
 
-# Append needs-restarting status
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "|  Needs-restarting status                                               |" | tee -a $out_file
-echo "+------------------------------------------------------------------------+" | tee -a $out_file
-echo "Running 'needs-restarting'." | tee -a $out_file
-needs-restarting 2>&1 | tee -a $out_file
-echo "--------------------------------------------------------------------------" | tee -a $out_file
-echo "Running 'needs-restarting --services'." | tee -a $out_file
-needs-restarting --services 2>&1 | tee -a $out_file
-echo "--------------------------------------------------------------------------" | tee -a $out_file
-echo "Running 'needs-restarting --reboothint'." | tee -a $out_file
-needs-restarting --reboothint 2>&1 | tee -a $out_file
+# Append needs-restarting status when report_needs_restarting=yes
+if [ "$report_needs_restarting" = yes ]; then
+    echo "+------------------------------------------------------------------------+" | tee -a $out_file
+    echo "|  Needs-restarting status                                               |" | tee -a $out_file
+    echo "+------------------------------------------------------------------------+" | tee -a $out_file
+    echo "Running 'needs-restarting'." | tee -a $out_file
+    needs-restarting 2>&1 | tee -a $out_file
+    echo "--------------------------------------------------------------------------" | tee -a $out_file
+    echo "Running 'needs-restarting --services'." | tee -a $out_file
+    needs-restarting --services 2>&1 | tee -a $out_file
+    echo "--------------------------------------------------------------------------" | tee -a $out_file
+    echo "Running 'needs-restarting --reboothint'." | tee -a $out_file
+    needs-restarting --reboothint 2>&1 | tee -a $out_file
+fi
 
 echo "$summary"
 
