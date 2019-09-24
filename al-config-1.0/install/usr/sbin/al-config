@@ -224,4 +224,14 @@ EOF
     fi
     umask $old_umask
     log "Configured OCI notification service topic OCID."
+    # send a message immediately
+    instance_name=$(get_instance_name)
+    title="AL: Notification enabled on instance $instance_name"
+    out_file=$(mktemp $work_dir/config_XXXX)
+    cat > $out_file<<EOF
+Configured OCI notification service topic OCID on instance $instance_name:
+  $oci_topic
+EOF
+    al-notify -t "$title" -f "$out_file"
+    rm -f "$out_file"
 fi

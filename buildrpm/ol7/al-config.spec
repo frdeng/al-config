@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.28%{?dist}
+Release: 1.0.29.dev0%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -60,6 +60,7 @@ install -m 0644 omprog_exploit_detection.pp %{buildroot}%{_datadir}/selinux/pack
 %attr(644,root,root) %config(noreplace) %{_sysconfdir}/%{name}/al.conf
 %attr(644,root,root) %{_sysconfdir}/%{name}/yum-cron.conf
 %attr(644,root,root) %{_sysconfdir}/logrotate.d/%{name}
+%attr(644,root,root) %{_sysconfdir}/profile.d/al.sh
 %attr(644,root,root) %{_sysconfdir}/rsyslog.d/al-exploit-alert.conf
 #/var
 %dir %{_sharedstatedir}/%{name}
@@ -86,6 +87,12 @@ fi
 %posttrans
 
 %changelog
+* Tue Sep 24 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.29
+- Send notification once topic OCID is configured.
+- Do not report 'needs-restaring' status be default.
+- Print welcome message for opc user login.
+- Fix exploit alert message.
+
 * Fri Sep 13 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.28
 - Add license url.
 
