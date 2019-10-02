@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.29%{?dist}
+Release: 1.0.30%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -47,6 +47,7 @@ install -m 0644 omprog_exploit_detection.pp %{buildroot}%{_datadir}/selinux/pack
 %attr(755,root,root) %{_prefix}/lib/%{name}/pre_config.sh
 %attr(755,root,root) %{_prefix}/lib/%{name}/add_cron_job.sh
 %attr(755,root,root) %{_prefix}/lib/%{name}/activate_known_exploit_detection.sh
+%attr(400,root,root) %{_prefix}/lib/%{name}/ksplice_access_key
 %attr(644,root,root) %{_prefix}/lib/systemd/system/al-config.service
 %attr(644,root,root) %{_prefix}/lib/systemd/system-preset/84-al.preset
 #/usr/sbin
@@ -90,6 +91,9 @@ fi
 %posttrans
 
 %changelog
+* Wed Oct 2 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.30
+- Update AL only ksplice access key. [Orabug: 30420716]
+
 * Tue Sep 24 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.29
 - Send notification once topic OCID is configured.
 - Do not report 'needs-restaring' status be default.

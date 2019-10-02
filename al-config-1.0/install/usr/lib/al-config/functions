@@ -130,3 +130,17 @@ activate_known_exploit_detection() {
     enable_known_exploit_detection
     command -v ksplice &>/dev/null && ksplice -y kernel upgrade &>/dev/null
 }
+
+update_ksplice_access_key() {
+    if [ -r /usr/lib/al-config/ksplice_access_key -a -f \
+        /etc/uptrack/uptrack.conf ]; then
+        local key=$(cat /usr/lib/al-config/ksplice_access_key)
+        if [ -n "$key" ]; then
+            if ! grep -q "^accesskey[[:space:]]*=[[:space:]]*$key$" \
+                /etc/uptrack/uptrack.conf; then
+                sed -i "s/^accesskey[[:space:]]*=.*/accesskey = $key/g" \
+                    /etc/uptrack/uptrack.conf
+            fi
+        fi
+    fi
+}
