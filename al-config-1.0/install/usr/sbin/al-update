@@ -236,8 +236,8 @@ cat > $summary_file <<SUM
 +------------------------------------------------------------------------+
 |  Summary ($(date))                                |
 +------------------------------------------------------------------------+
-Yum updates installed: $status_yum
 Ksplice updates installed: $status_ksplice
+Yum updates installed: $status_yum
 Uptime:$(uptime)
 SUM
 
