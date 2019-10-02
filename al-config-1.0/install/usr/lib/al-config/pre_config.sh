@@ -40,6 +40,9 @@ systemctl stop yum-cron.service &>/dev/null
 # yum-cron is pre set to disable by default
 systemctl preset yum-cron.service &>/dev/null
 
+# Update ksplice access key for AL only
+update_ksplice_access_key
+
 # Disable ksplice cron jobs by commenting out the cron job entries.
 for cron in /etc/cron.d/uptrack /etc/cron.d/ksplice; do
     if [ -f "$cron" ]; then
