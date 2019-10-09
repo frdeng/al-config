@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.30%{?dist}
+Release: 1.0.30.dev0%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
