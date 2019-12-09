@@ -117,7 +117,7 @@ if [ -n "$oci_user" -a -n "$oci_api_private_key_from" -a \
         if [ -z "$oci_key_passphrase_from" ]; then
             #echo "API key passphrase is required." >&2
             #prompt user to enter passphrase
-            read -s -p "Enter passphrase for $oci_api_private_key_from: " \
+            read -r -s -p "Enter passphrase for $oci_api_private_key_from: " \
                 oci_key_passphrase
             echo
             if [ -z "$oci_key_passphrase" ]; then
@@ -125,8 +125,8 @@ if [ -n "$oci_user" -a -n "$oci_api_private_key_from" -a \
                 exit 3
             fi
             # create temp passphrase file with permission 600
-            passphrase_file=$(mktemp $work_dir/.passphrase_XXX)
-            cat > $passphrase_file <<EOF
+            passphrase_file=$(mktemp "$work_dir/.passphrase_XXX")
+            cat > "$passphrase_file" <<EOF
 $oci_key_passphrase
 EOF
 
@@ -144,7 +144,7 @@ EOF
             -in "$oci_api_private_key_from" &>/dev/null; then
             # clean up temp passphrase file
             if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
-                rm -f $passphrase_file
+                rm -f "$passphrase_file"
             fi
             echo "Incorrect passphrase for $oci_api_private_key_from" >&2
             exit 3
@@ -158,7 +158,7 @@ EOF
             openssl md5 -c | awk '{print $2}')
         # clean up passphrase file
         if [ "$passphrase_file" != "$oci_key_passphrase_from" ]; then
-            rm -f $passphrase_file
+            rm -f "$passphrase_file"
         fi
     else
         oci_key_fingerprint=$(openssl rsa -pubout -outform DER \
@@ -175,12 +175,12 @@ EOF
 
     umask 0066
     # oci_api_key.pem
-    cat > $oci_api_key_file <<KEYFILE
+    cat > "$oci_api_key_file" <<KEYFILE
 $oci_api_private_key
 KEYFILE
 
     # oci_cli.conf
-    cat > $oci_cli_config_file <<CONFIG
+    cat > "$oci_cli_config_file" <<CONFIG
 [DEFAULT]
 user = $oci_user
 key_file = $oci_api_key_file
@@ -190,7 +190,7 @@ tenancy = $oci_tenancy
 region = $region
 CONFIG
 
-    umask $old_umask
+    umask "$old_umask"
     log "Configured OCI CLI profile."
     echo "Please delete $oci_api_private_key_from"
     if [ -f "$oci_key_passphrase_from" ]; then
@@ -208,27 +208,27 @@ if [ -n "$oci_topic" ]; then
     fi
     umask 0066
     if [ ! -f "$oci_config_file" ]; then
-        cat > $oci_config_file <<EOF
+        cat > "$oci_config_file" <<EOF
 # This file is a bourne shell snippet, and is sourced by the
 # script al-notify for configuration.
 
 EOF
     fi
-    if grep -q "^topic=" $oci_config_file; then
-        sed -i "s/^topic=.*/topic=\"$oci_topic\"/g" $oci_config_file
+    if grep -q "^topic=" "$oci_config_file"; then
+        sed -i "s/^topic=.*/topic=\"$oci_topic\"/g" "$oci_config_file"
     else
-        cat >> $oci_config_file <<EOF
+        cat >> "$oci_config_file" <<EOF
 # OCI notification service topic OCID
 topic="$oci_topic"
 EOF
     fi
-    umask $old_umask
+    umask "$old_umask"
     log "Configured OCI notification service topic OCID."
     # send a message immediately
     instance_name=$(get_instance_name)
     title="AL: Notification enabled on instance $instance_name"
-    out_file=$(mktemp $work_dir/config_XXXX)
-    cat > $out_file<<EOF
+    out_file=$(mktemp "$work_dir/config_XXXX")
+    cat > "$out_file" <<EOF
 Configured OCI notification service topic OCID on instance $instance_name:
   $oci_topic
 EOF

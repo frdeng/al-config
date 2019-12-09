@@ -36,7 +36,12 @@ acquire_lock
 # activate know exploit detection
 /usr/lib/al-config/activate_known_exploit_detection.sh
 
-# add cron job if the cron job doesn't exit
-/usr/lib/al-config/add_cron_job.sh
-
-release_lock
+# re-create cron job if system uuid has changed
+if system_uuid_changed; then
+    log_debug "System uuid has changed."
+    update_system_uuid
+    /usr/lib/al-config/add_cron_job.sh -f
+else
+    # add cron job if the cron job doesn't exit
+    /usr/lib/al-config/add_cron_job.sh
+fi

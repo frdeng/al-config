@@ -24,6 +24,7 @@ log_file=/var/log/al.log
 # state
 al_state_file=/var/lib/al-config/state
 al_update_file=/var/lib/al-config/update
+system_uuid_file=/var/lib/al-config/system-uuid
 
 # runtime work dir
 work_dir=/var/run/al-config
@@ -32,7 +33,7 @@ work_dir=/var/run/al-config
 umask 0026
 
 # make sure runtime work dir is created
-mkdir -p $work_dir
+mkdir -p "$work_dir"
 
 get_time() {
     date "+%F %T,%3N"
@@ -65,7 +66,7 @@ source_config_file() {
 }
 
 run_as_root_check() {
-    if [ $(id -u) != 0 ]; then
+    if [ "$(id -u)" != 0 ]; then
         echo "Please run as root." >&2
         exit 1
     fi
@@ -73,17 +74,18 @@ run_as_root_check() {
 
 acquire_lock() {
     local lock_file=/var/run/${0##*/}.lock
-    if [ -e $lock_file ]; then
-        echo "$0 is already running." >&2
-        echo "If you are sure it is not running, please delete $lock_file and re-run." >&2
+    if ! exec 8>"$lock_file"; then
+        log_error "Could not create lock file $lock_file."
         exit 1
     fi
-    touch $lock_file
+    if ! flock -n 8; then
+        log_info "Another $0 instance is holding $lock_file, existing"
+        exit 1
+    fi
 }
 
 release_lock() {
-    local lock_file=/var/run/${0##*/}.lock
-    rm -f $lock_file
+    flock -u 8
 }
 
 read_file() {
@@ -132,9 +134,10 @@ activate_known_exploit_detection() {
 }
 
 update_ksplice_access_key() {
-    if [ -r /usr/lib/al-config/ksplice_access_key -a -f \
-        /etc/uptrack/uptrack.conf ]; then
-        local key=$(cat /usr/lib/al-config/ksplice_access_key)
+    if [ -r /usr/lib/al-config/ksplice_access_key ] && \
+        [ -f /etc/uptrack/uptrack.conf ]; then
+        local key
+        key=$(< /usr/lib/al-config/ksplice_access_key)
         if [ -n "$key" ]; then
             if ! grep -q "^accesskey[[:space:]]*=[[:space:]]*$key$" \
                 /etc/uptrack/uptrack.conf; then
@@ -143,4 +146,19 @@ update_ksplice_access_key() {
             fi
         fi
     fi
+}
+
+update_system_uuid() {
+    local uuid
+    uuid=$(dmidecode -s system-uuid 2>/dev/null)
+    echo "$uuid" > "$system_uuid_file"
+    log_debug "Updated system uuid $uuid"
+}
+
+system_uuid_changed() {
+    [ -f "$system_uuid_file" ] || update_system_uuid
+    local uuid new_uuid
+    uuid=$(< "$system_uuid_file")
+    new_uuid=$(dmidecode -s system-uuid 2>/dev/null)
+    [ "$uuid" != "$new_uuid" ]
 }
