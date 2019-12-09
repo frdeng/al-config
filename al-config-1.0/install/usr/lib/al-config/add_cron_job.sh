@@ -34,11 +34,11 @@ while getopts "fh" OPTION; do
     esac
 done
 
-if [ ! -f "$al_cron_job_file" -o $force -eq 1 ]; then
-    # Add AL auto update cron job
-    cat > $al_cron_job_file <<CRON
+if [ ! -f "$al_cron_job_file" ] || [ $force -eq 1 ]; then
+    # Add or re-create AL auto update cron job
+    cat > "$al_cron_job_file" <<CRON
 # Daily cron job for AL updates
-$(($RANDOM%60)) $(($RANDOM%24)) * * * root /usr/sbin/al-update &>/dev/null
+$((RANDOM%60)) $((RANDOM%24)) * * * root /usr/sbin/al-update &>/dev/null
 CRON
     log "Created cron job file $al_cron_job_file ."
 fi
