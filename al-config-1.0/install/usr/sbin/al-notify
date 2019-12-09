@@ -24,10 +24,10 @@ EOF
 # global variables:
 # instance_principal, OCI_CLI_PROFILE_CONFIG, OCI_INSTANCE_PRINCIPAL_AUTH
 publish_message() {
-    local out ret0 ret1 out0 out1
+    local ret0 ret1 out0 out1
     log "Publishing message '$2'"
     # oci cli profile
-    if [ $instance_principal -eq 0 ]; then
+    if [ "$instance_principal" -eq 0 ]; then
         log_debug "Running OCI CLI with profile config."
         out0=$(oci $OCI_CLI_PROFILE_CONFIG ons message publish --topic-id "$1" \
             --title "$2" --body "$3" 2>&1)
@@ -100,7 +100,7 @@ if [ ! -f "$oci_config_file" ]; then
 fi
 
 # source oci config file
-. $oci_config_file
+. "$oci_config_file"
 
 # If topic ocid is not set, exit.
 if [ -z "$topic" ]; then
@@ -120,21 +120,21 @@ fi
 OCI_INSTANCE_PRINCIPAL_AUTH="--auth instance_principal"
 OCI_CLI_PROFILE_CONFIG="--config-file $oci_cli_config_file"
 
-size=$(stat -c %s $file)
-if [ $size -gt 65536 ]; then
-    split -C 64K -d -a 1 $file ${file}.
-    files="$(ls $file.*)"
-    count=$(ls $file.* | wc -l)
+size=$(stat -c %s "$file")
+if [ "$size" -gt 65536 ]; then
+    split -C 64K -d -a 1 "$file" "${file}."
+    files=$(ls "$file".*)
+    count=$(ls "$file".* | wc -l)
     for f in $files; do
         i=${f##*.}
-        t="[$(($i+1))/$count] $title"
+        t="[$((i+1))/$count] $title"
         body=$(read_file "$f")
         publish_message "$topic" "$t" "$body"
         ret=$?
         # wait a second
         sleep 1
     done
-    rm -f $files
+    rm -f "$files"
 else
     body=$(read_file "$file")
     publish_message "$topic" "$title" "$body"

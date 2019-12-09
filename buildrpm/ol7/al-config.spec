@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 1.0.30%{?dist}
+Release: 2.dev1%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -11,6 +11,7 @@ Vendor: Oracle America
 
 Source: %{name}-%{version}.tar.gz
 
+Requires: util-linux
 Requires: uptrack
 Requires: yum-cron
 Requires: jq
@@ -91,6 +92,9 @@ fi
 %posttrans
 
 %changelog
+* Thu Dec 12 2019 Frank Deng <frank.deng@oracle.com> - 1.0-2
+- Re-create al-update cron job when new system uuid is detected. [Orabug: 30641733]
+
 * Wed Oct 2 2019 Frank Deng <frank.deng@oracle.com> - 1.0-1.0.30
 - Update AL only ksplice access key. [Orabug: 30420716]
 
