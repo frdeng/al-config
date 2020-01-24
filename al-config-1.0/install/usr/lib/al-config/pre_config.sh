@@ -50,5 +50,12 @@ for cron in /etc/cron.d/uptrack /etc/cron.d/ksplice; do
     fi
 done
 
+# Fix file /var/lib/yum/uuid permissions - 644
+if [ -f /var/lib/yum/uuid ]; then
+    if [ "$(stat -c '%a' /var/lib/yum/uuid 2>/dev/null)" != 644 ]; then
+        chmod 644 /var/lib/yum/uuid
+    fi
+fi
+
 # Enable known exploit detection
 enable_known_exploit_detection
