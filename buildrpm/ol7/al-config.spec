@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 2%{?dist}
+Release: 3%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -92,6 +92,9 @@ fi
 %posttrans
 
 %changelog
+* Fri Jan 24 2020 Frank Deng <frank.deng@oracle.com> - 1.0-3
+- Fix /var/lib/yum/uuid permissions. [Orabug: 30809376]
+
 * Thu Dec 12 2019 Frank Deng <frank.deng@oracle.com> - 1.0-2
 - Re-create al-update cron job when new system uuid is detected. [Orabug: 30641733]
 

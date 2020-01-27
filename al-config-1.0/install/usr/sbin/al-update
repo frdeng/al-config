@@ -133,6 +133,9 @@ echo "+------------------------------------------------------------------------+
 # Another app is currently holding the yum lock; waiting for it to exit...
 
 echo "Running 'yum-cron' with update cmd: default." | tee -a "$out_file"
+
+old_umask=$(umask)
+umask 0022
 yum-cron "$yum_cron_config_file" 2>&1 | tee -a "$out_file"
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
     status_yum=failed
@@ -143,6 +146,7 @@ else
         status_yum=yes
     fi
 fi
+umask "$old_umask"
 
 ### Update is done ###
 
