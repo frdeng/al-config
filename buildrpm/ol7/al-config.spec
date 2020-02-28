@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 3%{?dist}
+Release: 4%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -17,8 +17,7 @@ Requires: yum-cron
 Requires: jq
 Requires: rsyslog
 Requires: openssl
-Requires: python-oci-cli
-Requires: python-oci-sdk
+Requires: python36-oci-cli
 Requires: policycoreutils
 Requires: selinux-policy
 Buildrequires: checkpolicy policycoreutils-python
@@ -92,6 +91,9 @@ fi
 %posttrans
 
 %changelog
+* Tue Feb 11 2020 Frank Deng <frank.deng@oracle.com> - 1.0-4
+- Update dependency on python36-oci-cli. [Orabug: 30796260]
+
 * Fri Jan 24 2020 Frank Deng <frank.deng@oracle.com> - 1.0-3
 - Fix /var/lib/yum/uuid permissions. [Orabug: 30809376]
 

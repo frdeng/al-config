@@ -22,7 +22,7 @@ Configure OCI CLI profile:
   Options:
     -u [user OCID] OCI User OCID
     -t [tenancy OCID] OCI Tenancy OCID
-    -k [key file] from which we obtaion the API private key
+    -k [key file] from which we obtain the API private key
     -p [key passphrase file] from which we obtain API key passphrase. Provide
        this if API private key is encrypted. If not provided, user will be
        prompted to enter passphrase.
