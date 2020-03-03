@@ -162,3 +162,210 @@ system_uuid_changed() {
     new_uuid=$(dmidecode -s system-uuid 2>/dev/null)
     [ "$uuid" != "$new_uuid" ]
 }
+
+# validate time window string
+# minimum: 2 hours
+# maximum: 6 hours
+# examples:
+#   valid: <1-3>, <23-01>, <2-8>
+#   invalid: <1-2>, <23-0>, <22-8>, <6-13>
+validate_auto_update_time_window () {
+    local time_window="$1"
+    [[ "$time_window" =~ ^[0-9]{1,2}-[0-9]{1,2}$ ]] || return 1
+
+    local start end window
+    start=${time_window%-*}
+    end=${time_window#*-}
+
+    [ "${start::1}" = 0 ] && [ "${#start}" -eq 2 ] && start=${start:1:1}
+    [ "${end::1}" = 0 ] && [ "${#end}" -eq 2 ] && end=${end:1:1}
+
+    if [ "$start" -ge 24 ] || [ "$end" -ge 24 ]; then
+        return 2
+    fi
+    [ "$end" -lt "$start" ] && end=$((end + 24))
+    window=$((end - start))
+    # minimum window: 2 hours
+    [ "$window" -lt 2 ] && return 3
+    # maximum window: 6 hours
+    [ "$window" -gt 6 ] && return 4
+
+    return 0
+}
+
+# param:
+# $1 - time window
+# $2 - update time
+validate_auto_update_time () {
+    local time_window update_time start end h m
+    time_window="$1"
+    update_time="$2"
+    [ -z "$time_window" ] && return 1
+    [ -z "$update_time" ] && return 1
+    start=${time_window%-*}
+    end=${time_window#*-}
+    h=${update_time#* }
+    ([ -z "$start" ] || [ -z "$end" ] || [ -z "$h" ]) && return 1
+
+    # when start < end e.g. 1-5
+    if [ "$start" -lt "$end" ]; then
+        [ "$h" -ge "$start" ] && [ "$h" -lt "$end" ] || return 1
+    # when start > end e.g 22-4
+    elif [ "$start" -gt "$end" ]; then
+        ([ "$h" -ge "$start" ] && [ "$h" -lt 24 ]) || ([ "$h" -ge 0 ] && \
+            [ "$h" -lt "$end" ]) || return 1
+    fi
+    m=${update_time% *}
+    [ -z "$m" ] && return 1
+    ([ "$m" -ge 0 ] && [ "$m" -le 19 ]) || ([ "$m" -ge 30 ] && \
+        [ "$m" -le 49 ]) || return 1
+    return 0
+}
+
+# param:
+# $1 - valid time window string
+#      e.g <1-3>, <23-4>, <2-2>
+# return:
+#   "<min> <hour>" - random hour and minute in the time window
+generate_update_time () {
+    local time_window start end h m d
+    time_window="$1"
+    start=${time_window%-*}
+    end=${time_window#*-}
+
+    [ "${start::1}" = 0 ] && [ "${#start}" -eq 2 ] && start=${start:1:1}
+    [ "${end::1}" = 0 ] && [ "${#end}" -eq 2 ] && end=${end:1:1}
+
+    # handle cases like <1-1>, <22-22> - 24 hour window
+    if [ "$start" -eq "$end" ]; then
+        h=$(shuf -i 0-23 -n 1 2>/dev/null)
+    # handle cases like <22-2>, <3-1>
+    elif [ "$start" -gt "$end" ]; then
+        d=$((24 - start))
+        h=$(shuf -i 0-$((end + d - 1)) -n 1 2>/dev/null)
+        if [ "$h" -ge "$d" ]; then
+            h=$((h - d))
+        else
+            h=$((h - d + 24))
+        fi
+    else
+        h=$(shuf -i "$start-$((end - 1))" -n 1 2>/dev/null)
+    fi
+    m=$(shuf -e {0..19} {30..49} -n 1 2>/dev/null)
+    echo "$m $h"
+}
+
+get_update_time () {
+    local update_time
+    if [ -f "$al_cron_job_file" ]; then
+        update_time=$(grep "^[0-9]" "$al_cron_job_file" 2>/dev/null | \
+            awk '{print $1, $2}')
+        [ -n "$update_time" ] && echo "$update_time"
+    fi
+}
+
+get_readable_update_time () {
+    local update_time h m
+    update_time="$1"
+    if [ -n "$update_time" ]; then
+        h=${update_time#* }
+        [ ${#h} -eq 1 ] && h="0$h"
+        m=${update_time% *}
+        [ ${#m} -eq 1 ] && m="0$m"
+        echo "$h:$m"
+    fi
+}
+
+configure_auto_update_time_window () {
+    local time_window
+    time_window="$1"
+
+    # add/change time window in config file
+    if grep -q "^auto_update_time_window=" "$config_file" 2>/dev/null; then
+        sed -i "s/auto_update_time_window=.*/auto_update_time_window=\
+$time_window/g" "$config_file"
+    else
+        cat >> "$config_file" <<EOF
+
+# Auto update time window
+auto_update_time_window=$time_window
+EOF
+    fi
+    log "Configured daily auto update time window(24-hour): $time_window"
+
+}
+
+configure_auto_update_time () {
+    local update_time readable_update_time
+    update_time="$1"
+    # add/update cron job
+    [ -f "$al_cron_job_file" ] && chmod 644 "$al_cron_job_file"
+    cat > "$al_cron_job_file" <<CRON
+# Daily cron job for AL auot updates.
+# Created by al-config, do not modify this file.
+# If you want to change update time, use
+# 'sudo al-config -w <time window>' to set auto update time window
+$update_time * * * root /usr/sbin/al-update >/dev/null
+CRON
+    chmod 444 "$al_cron_job_file"
+    readable_update_time=$(get_readable_update_time "$update_time")
+    log "Configured daily auto update time(24-hour): $readable_update_time"
+    log "Created cron job file $al_cron_job_file ."
+}
+
+generate_default_auto_update_time_window () {
+    local current_hour start_hour end_hour
+    current_hour=$(date +%H)
+    # set the start window at least 1-2 hours later
+    # and set default time window to 4 hours
+    start_hour=$((current_hour + 2))
+    end_hour=$((start_hour + 4))
+    [ "$start_hour" -ge 24 ] && start_hour=$((start_hour - 24))
+    [ "$end_hour" -ge 24 ] && end_hour=$((end_hour - 24))
+    echo "$start_hour-$end_hour"
+}
+
+schedule_auto_update () {
+    local force current_update_time time_window update_time h m end
+    force="$1"
+    time_window=$auto_update_time_window
+    validate_auto_update_time_window "$time_window" ||
+        time_window=$(generate_default_auto_update_time_window)
+    if [ "$force" = 1 ]; then
+        update_time=$(generate_update_time "$time_window")
+    else
+        current_update_time=$(get_update_time)
+        update_time=$current_update_time
+
+        # handle the case that old instances which have update time but don't
+        # have time window
+        if [ -n "$current_update_time" ]; then
+            m=${current_update_time% *}
+            h=${current_update_time#* }
+            # fix the incorret update time that is not in 0-19, 30-49
+            if ! ( ([ "$m" -ge 0 ] && [ "$m" -le 19 ]) || ([ "$m" -ge 30 ] \
+                && [ "$m" -le 49 ]) ); then
+                log_debug "Fixing daily auto update time: \
+$(get_readable_update_time "$current_update_time")"
+                m=$(shuf -e {0..19} {30..49} -n 1 2>/dev/null)
+                update_time="$m $h"
+            fi
+            # create update window
+            if [ -z "$auto_update_time_window" ]; then
+                end=$((h + 4))
+                [ $end -ge 24 ] && end=$((end - 24))
+                time_window="$h-$end"
+                validate_auto_update_time_window "$time_window" ||
+                    time_window=$(generate_default_auto_update_time_window)
+            fi
+        fi
+        if ! validate_auto_update_time "$time_window" "$update_time"; then
+            update_time=$(generate_update_time "$time_window")
+        fi
+    fi
+
+    [ "$time_window" != "$auto_update_time_window" ] &&
+        configure_auto_update_time_window "$time_window"
+    [ "$update_time" != "$current_update_time" ] &&
+        configure_auto_update_time "$update_time"
+}

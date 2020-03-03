@@ -21,6 +21,8 @@ EOF
 
 run_as_root_check
 
+source_config_file
+
 while getopts "h" OPTION; do
     case "$OPTION" in
       h)
@@ -56,6 +58,9 @@ if [ -f /var/lib/yum/uuid ]; then
         chmod 644 /var/lib/yum/uuid
     fi
 fi
+
+# Fix daily auto update time if it's incorrect
+[ -f "$al_cron_job_file" ] && schedule_auto_update
 
 # Enable known exploit detection
 enable_known_exploit_detection
