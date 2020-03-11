@@ -8,15 +8,30 @@
 
 . /usr/lib/al-config/functions
 
-usage() {
-    cat >&2 << EOF
-Configure OCI notification service topic OCID:
+show_current_auto_update_time() {
+    source_config_file
+    local update_time readable_update_time
+    if [ -z "$auto_update_time_window" ]; then
+        echo "Daily auto update time window is not set."
+    else
+        echo "Current daily auto update time window(24-hour): $auto_update_time_window"
+    fi
+    update_time=$(get_update_time)
+    if [ -z "$update_time" ]; then
+        echo "Daily auto update time is not set."
+    else
+        readable_update_time=$(get_readable_update_time "$update_time")
+        echo "Current daily auto update time(24-hour): $readable_update_time"
+    fi
+}
+
+CONFIGURE_NOTIFICATION_TOPIC_USAGE="Configure OCI notification service topic OCID:
   Usage:
     ${0##*/} -T [topic OCID]
   Options:
-    -T [topic OCID] OCI notification service topic OCID
+    -T [topic OCID] OCI notification service topic OCID"
 
-Configure OCI CLI profile:
+CONFIGURE_OCI_CLI_USAGE="Configure OCI CLI profile:
   Usage:
     ${0##*/} -u [user OCID] -t [tenancy OCID] -k [key file]
   Options:
@@ -25,15 +40,56 @@ Configure OCI CLI profile:
     -k [key file] from which we obtain the API private key
     -p [key passphrase file] from which we obtain API key passphrase. Provide
        this if API private key is encrypted. If not provided, user will be
-       prompted to enter passphrase.
+       prompted to enter passphrase."
 
+CONFIGURE_TIME_WINDOW_USAGE="Configure or show daily auto update time window:
+  Usage:
+    ${0##*/} -w [time window]
+    ${0##*/} -s
+  Options:
+    -w [window] Time window string, format: <start_hour>-<end_hour>
+       <start_hour> and <end_hour> must be integers between 0 and 23.
+        Minimum window is 2 hours, maximum window is 6 hours.
+    -s Show current auto update time window and update time.
+  Time window examples:
+    Valid time window:
+       0-2:  2-hour window(12am - 2am)
+      20-0:  4-hour window(8pm - 12am)
+      23-5:  6-hour window(11pm - 5am)
+   Invalid time window:
+       1-2:  minimum window should be 2 hours.
+      20-3:  maximum window should be 6 hours."
+
+usage() {
+    if [ -n "$1" ]; then
+        case "$1" in
+            topic)
+                echo "$CONFIGURE_NOTIFICATION_USAGE" >&2
+                ;;
+            cli)
+                echo "$CONFIGURE_OCI_CLI_USAGE" >&2
+                ;;
+            window)
+                echo "$CONFIGURE_TIME_WINDOW_USAGE" >&2
+                ;;
+            *)
+                ;;
+        esac
+    else
+        cat >&2 <<EOF
+$CONFIGURE_NOTIFICATION_TOPIC_USAGE
+
+$CONFIGURE_OCI_CLI_USAGE
+
+$CONFIGURE_TIME_WINDOW_USAGE
 EOF
+    fi
     exit 1
 }
 
 run_as_root_check
 
-while getopts "u:k:p:t:T:h" OPTION; do
+while getopts "u:k:p:t:T:w:sh" OPTION; do
     case "$OPTION" in
       u)
         oci_user=$OPTARG
@@ -50,6 +106,13 @@ while getopts "u:k:p:t:T:h" OPTION; do
       T)
         oci_topic=$OPTARG
         ;;
+      w)
+        time_window=$OPTARG
+        ;;
+      s)
+        show_current_auto_update_time
+        exit 0
+        ;;
       h)
         usage
         ;;
@@ -61,7 +124,7 @@ done
 
 # nothing provided
 if [ -z "$oci_topic" -a -z "$oci_user" -a -z "$oci_api_private_key_from" -a \
-    -z "$oci_tenancy" ]; then
+    -z "$oci_tenancy" -a -z "$time_window" ]; then
     usage
 fi
 
@@ -70,7 +133,7 @@ if [ -n "$oci_user" -o -n "$oci_api_private_key_from" -o -n \
     "$oci_tenancy" ]; then
     if [ -z "$oci_user" -o -z "$oci_api_private_key_from" -o -z \
         "$oci_tenancy" ] ; then
-        usage
+        usage cli
     fi
 fi
 
@@ -234,4 +297,21 @@ Configured OCI notification service topic OCID on instance $instance_name:
 EOF
     al-notify -t "$title" -f "$out_file"
     rm -f "$out_file"
+fi
+
+## Set auto update time window##
+if [ -n "$time_window" ]; then
+    validate_auto_update_time_window "$time_window"
+    ret=$?
+    if [ "$ret" -ne 0 ]; then
+        echo "Invalid time window." >&2
+        [ "$ret" -eq 3 ] && echo "Minimum time window is 2 hours." >&2
+        [ "$ret" -eq 4 ] && echo "Maximum time window is 6 hours." >&2
+        echo
+        usage window
+        exit $ret
+    fi
+    configure_auto_update_time_window "$time_window"
+    update_time=$(generate_update_time "$time_window")
+    configure_auto_update_time "$update_time"
 fi

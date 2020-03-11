@@ -19,6 +19,8 @@ EOF
 
 run_as_root_check
 
+source_config_file
+
 force=0
 while getopts "fh" OPTION; do
     case "$OPTION" in
@@ -34,11 +36,4 @@ while getopts "fh" OPTION; do
     esac
 done
 
-if [ ! -f "$al_cron_job_file" ] || [ $force -eq 1 ]; then
-    # Add or re-create AL auto update cron job
-    cat > "$al_cron_job_file" <<CRON
-# Daily cron job for AL updates
-$((RANDOM%60)) $((RANDOM%24)) * * * root /usr/sbin/al-update >/dev/null
-CRON
-    log "Created cron job file $al_cron_job_file ."
-fi
+schedule_auto_update "$force"

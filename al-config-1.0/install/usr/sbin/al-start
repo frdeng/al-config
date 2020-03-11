@@ -42,6 +42,5 @@ if system_uuid_changed; then
     update_system_uuid
     /usr/lib/al-config/add_cron_job.sh -f
 else
-    # add cron job if the cron job doesn't exit
     /usr/lib/al-config/add_cron_job.sh
 fi
