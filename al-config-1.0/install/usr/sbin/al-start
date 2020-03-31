@@ -44,3 +44,5 @@ if system_uuid_changed; then
 else
     /usr/lib/al-config/add_cron_job.sh
 fi
+
+exit 0

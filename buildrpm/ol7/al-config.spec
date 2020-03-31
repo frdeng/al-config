@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 6%{?dist}
+Release: 7%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -11,6 +11,8 @@ Vendor: Oracle America
 
 Source: %{name}-%{version}.tar.gz
 
+Obsoletes: oraclelinux-release-el7 ksplice-release-el7
+Obsoletes: rhn-check rhn-client-tools rhn-setup rhnsd yum-plugin-ulninfo yum-rhn-plugin
 Requires: util-linux
 Requires: uptrack
 Requires: yum-cron
@@ -64,6 +66,7 @@ install -m 0644 omprog_exploit_detection.pp %{buildroot}%{_datadir}/selinux/pack
 %attr(644,root,root) %{_sysconfdir}/logrotate.d/%{name}
 %attr(644,root,root) %{_sysconfdir}/profile.d/al.sh
 %attr(644,root,root) %{_sysconfdir}/rsyslog.d/al-exploit-alert.conf
+%attr(644,root,root) %{_sysconfdir}/yum.repos.d/al-al7.repo
 #/var
 %dir %{_sharedstatedir}/%{name}
 
@@ -89,8 +92,13 @@ fi
 %systemd_postun_with_restart %{name}.service
 
 %posttrans
+# clean up rpmsave files
+/bin/rm -f /etc/yum.repos.d/{oracle-linux-ol7,uek-ol7,virt-ol7,ksplice-ol7}.repo.rpm*
 
 %changelog
+* Tue Mar 31 2020 Frank Deng <frank.deng@oracle.com> - 1.0-7
+- Remove OL7 yum repo files
+
 * Thu Mar 12 2020 Frank Deng <frank.deng@oracle.com> - 1.0-6
 - Fix typos.
 

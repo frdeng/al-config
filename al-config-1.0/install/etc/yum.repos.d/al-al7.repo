@@ -1,0 +1,13 @@
+[al7]
+name=Autonomous Linux $releasever ($basearch)
+baseurl=http://yum$ociregion.oracle.com/repo/AutonomousLinux/7/$basearch/
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
+gpgcheck=1
+enabled=1
+
+[ol7_x86_64_userspace_ksplice]
+name=Ksplice aware userspace packages for Oracle Linux $releasever ($basearch)
+baseurl=http://yum$ociregion.oracle.com/repo/OracleLinux/OL7/userspace/ksplice/x86_64/
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
+gpgcheck=1
+enabled=1
