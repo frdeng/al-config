@@ -229,8 +229,13 @@ EOF
             awk '{print $2}')
     fi
 
-    region=$(curl -sfm 25 \
-        http://169.254.169.254/opc/v1/instance/canonicalRegionName 2>/dev/null)
+    region=$(curl -sfm 25 -H "Authorization: Bearer Oracle" \
+        http://169.254.169.254/opc/v2/instance/canonicalRegionName 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        region=$(curl -sfm 25 \
+            http://169.254.169.254/opc/v1/instance/canonicalRegionName \
+            2>/dev/null)
+    fi
     if [ -z "$region" ]; then
         echo "Could not obtain OCI region." >&2
         exit 3

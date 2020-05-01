@@ -1,6 +1,6 @@
 Name: al-config
 Version: 1.0
-Release: 7%{?dist}
+Release: 8%{?dist}
 Summary: Configuration tasks for Autonomous Linux instances running in Oracle Cloud Infrastructure
 BuildArch: noarch
 
@@ -96,6 +96,9 @@ fi
 /bin/rm -f /etc/yum.repos.d/{oracle-linux-ol7,uek-ol7,virt-ol7,ksplice-ol7}.repo.rpm*
 
 %changelog
+* Thu Apr 30 2020 Frank Deng <frank.deng@oracle.com> - 1.0-8
+- Add OCI IMDS v2 support
+
 * Tue Mar 31 2020 Frank Deng <frank.deng@oracle.com> - 1.0-7
 - Remove OL7 yum repo files
 
