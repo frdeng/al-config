@@ -100,7 +100,10 @@ read_file() {
 }
 
 get_instance_name() {
-    curl -sfm 25 http://169.254.169.254/opc/v1/instance/displayName 2>/dev/null
+    curl -sfm 25 -H "Authorization: Bearer Oracle" \
+        http://169.254.169.254/opc/v2/instance/displayName \
+        2>/dev/null || curl -sfm 25 \
+        http://169.254.169.254/opc/v1/instance/displayName 2>/dev/null
 }
 
 is_known_exploit_detection_activated() {
